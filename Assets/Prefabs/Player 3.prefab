@@ -251,16 +251,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e601c08435bfe784d99650eee56c994f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 5
-  jumpForce: 10
-  hostSpeed: 15
-  hostJumpForce: 10
-  clientSpeed: 10
-  clientJumpForce: 5
-  hostModelPrefab: {fileID: 517438471747750780, guid: a73da32eeb85eca4eaf7957cf3315705,
-    type: 3}
-  clientModelPrefab: {fileID: 1295093202474509318, guid: e6e3fd5bf7df8fc43a68847d11e0b662,
-    type: 3}
+  characterConfigs:
+  - prefab: {fileID: 2604427402856578209, guid: ff19e91865ca4584ab5a332dfa42c217,
+      type: 3}
+    speed: 15
+    jumpForce: 10
+  - prefab: {fileID: 2724173886079987104, guid: 5cf077a3a68808244af283e8bcd0035b,
+      type: 3}
+    speed: 8
+    jumpForce: 5
+  defaultCharacterIndex: 1
 --- !u!54 &6422067945367000645
 Rigidbody:
   m_ObjectHideFlags: 0
