@@ -261,6 +261,9 @@ MonoBehaviour:
     speed: 8
     jumpForce: 5
   defaultCharacterIndex: 1
+  warningDistance: 23
+  limitDistance: 30
+  outOfRangeDuration: 15
 --- !u!54 &6422067945367000645
 Rigidbody:
   m_ObjectHideFlags: 0
