@@ -3,6 +3,10 @@ using Unity.Netcode;
 using Cinemachine;
 using System.Collections.Generic;
 
+//
+// ---------------------------------------------------------
+// CHARACTER CONFIG DATA
+// ---------------------------------------------------------
 [System.Serializable]
 public class CharacterConfig
 {
@@ -11,15 +15,24 @@ public class CharacterConfig
     public float jumpForce = 5f;
 }
 
+//
+// ---------------------------------------------------------
+// PLAYER MOVEMENT CONTROLLER
+// ---------------------------------------------------------
 public class PlayerMovement : NetworkBehaviour
 {
+    // -----------------------------------------------------
+    // CHARACTER OPTIONS
+    // -----------------------------------------------------
     [Header("Character Options")]
     public List<CharacterConfig> characterConfigs;
 
     [Header("Default Character Index")]
     public int defaultCharacterIndex = 0;
 
-    // --- Distance Check Settings ---
+    // -----------------------------------------------------
+    // DISTANCE CHECK SYSTEM
+    // -----------------------------------------------------
     [Header("Distance Check Settings")]
     public float warningDistance = 15f;
     public float limitDistance = 20f;
@@ -28,17 +41,25 @@ public class PlayerMovement : NetworkBehaviour
     private static float outOfRangeTimer = 0f;
     private static bool timerActive = false;
 
+    // -----------------------------------------------------
+    // INTERNAL COMPONENTS
+    // -----------------------------------------------------
     private GameObject spawnedModel;
     private Animator animator;
     private Rigidbody rb;
 
     private bool isGrounded;
-    private bool lastGroundedState = false; // for debug logs
     private Vector3 lastInput;
 
-    // Network synced vars
     private NetworkVariable<int> selectedCharacterIndex = new NetworkVariable<int>();
+
     private NetworkVariable<bool> isWalkingNet = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> groundedNet = new NetworkVariable<bool>(
         false,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
@@ -47,6 +68,29 @@ public class PlayerMovement : NetworkBehaviour
     private float speed;
     private float jumpForce;
 
+    // -----------------------------------------------------
+    // ITEM COLLECTION SYSTEM
+    // -----------------------------------------------------
+    [Header("Item Collection")]
+    public float collectRange = 2f;
+    private CollectibleItem currentItem;
+    private GameObject floatingFText;
+
+    // -----------------------------------------------------
+    // MOVABLE OBJECT INTERACTION (NO MOVEMENT INCLUDED)
+    // -----------------------------------------------------
+    private bool interactingWithObject = false;
+    public Vector3 LastInput => lastInput;
+    public int SelectedCharacterIndex => selectedCharacterIndex.Value;
+
+    public void SetInteractingWithObject(bool state)
+    {
+        interactingWithObject = state;
+    }
+
+    // -----------------------------------------------------
+    // NETWORK INITIALIZATION
+    // -----------------------------------------------------
     public override void OnNetworkSpawn()
     {
         rb = GetComponent<Rigidbody>();
@@ -55,7 +99,7 @@ public class PlayerMovement : NetworkBehaviour
         if (!IsServer)
             rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        if (IsServer && selectedCharacterIndex.Value == 0 && characterConfigs.Count > 0)
+        if (IsServer && characterConfigs.Count > 0)
             selectedCharacterIndex.Value = defaultCharacterIndex;
 
         ApplyCharacterConfig(selectedCharacterIndex.Value);
@@ -76,6 +120,9 @@ public class PlayerMovement : NetworkBehaviour
             AssignCamera();
     }
 
+    // -----------------------------------------------------
+    // CHARACTER SELECTION
+    // -----------------------------------------------------
     public void SelectCharacter(int index)
     {
         if (!IsOwner) return;
@@ -92,10 +139,14 @@ public class PlayerMovement : NetworkBehaviour
     void ApplyCharacterConfig(int index)
     {
         if (index < 0 || index >= characterConfigs.Count) return;
+
         speed = characterConfigs[index].speed;
         jumpForce = characterConfigs[index].jumpForce;
     }
 
+    // -----------------------------------------------------
+    // CHARACTER MODEL HANDLING
+    // -----------------------------------------------------
     void SpawnSelectedModel()
     {
         if (spawnedModel != null)
@@ -115,7 +166,7 @@ public class PlayerMovement : NetworkBehaviour
                 Destroy(c);
 
             animator = spawnedModel.GetComponentInChildren<Animator>();
-            ApplyAnimationState(false); // idle on spawn
+            ApplyAnimationState(false);
         }
     }
 
@@ -129,14 +180,22 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
+    // -----------------------------------------------------
+    // FIXED UPDATE — MOVEMENT HANDLING
+    // -----------------------------------------------------
     void FixedUpdate()
     {
+        if (!IsSpawned) return;
+
+        //
+        // SERVER-SIDE MOVEMENT
+        //
         if (IsServer)
         {
-            // Movement slower in air
-            float appliedSpeed = isGrounded ? speed : speed * 0.5f;
-            Vector3 move = lastInput.normalized * appliedSpeed;
+            float speedMultiplier = interactingWithObject ? 0.5f : 1f;
+            float appliedSpeed = isGrounded ? speed * speedMultiplier : speed * 0.5f * speedMultiplier;
 
+            Vector3 move = lastInput.normalized * appliedSpeed;
             rb.velocity = new Vector3(move.x, rb.velocity.y, move.z);
 
             RotateTowards(lastInput);
@@ -145,10 +204,12 @@ public class PlayerMovement : NetworkBehaviour
             if (isWalkingNet.Value != walking)
                 isWalkingNet.Value = walking;
 
-            // --- Distance Check Logic ---
             CheckPlayersDistance();
         }
 
+        //
+        // CLIENT INPUT
+        //
         if (IsOwner)
         {
             float x = Input.GetAxis("Horizontal");
@@ -159,68 +220,106 @@ public class PlayerMovement : NetworkBehaviour
 
             ApplyAnimationState(input.magnitude > 0.01f);
 
-            // Jump input (grounded required)
-            if (Input.GetKeyDown(KeyCode.K) && isGrounded)
-                JumpServerRpc();
+            //
+            // JUMP WITH RAYCAST
+            //
+            if (Input.GetKeyDown(KeyCode.K))
+            {
+                float groundCheckDistance = 0.2f;
+                float groundOffset = 0.9f;
+                Vector3 rayOrigin = transform.position + Vector3.down * groundOffset;
+
+                bool canJump = Physics.Raycast(rayOrigin, Vector3.down, groundCheckDistance);
+                Debug.DrawRay(rayOrigin, Vector3.down * groundCheckDistance, canJump ? Color.green : Color.red, 1f);
+
+                if (canJump)
+                    JumpServerRpc();
+            }
+
+            //
+            // ITEM HANDLING
+            //
+            DetectItem();
+            if (currentItem != null && Input.GetKeyDown(KeyCode.F))
+                CollectItemServerRpc(currentItem.NetworkObject);
         }
     }
 
-    // --- Distance Calculation and Handling ---
-    void CheckPlayersDistance()
+    // -----------------------------------------------------
+    // ITEM DETECTION + UI
+    // -----------------------------------------------------
+    void DetectItem()
     {
-        // Only run on server
-        var players = FindObjectsOfType<PlayerMovement>();
-        if (players.Length != 2)
-        {
-            // Only process if exactly 2 players
-            outOfRangeTimer = 0f;
-            timerActive = false;
-            return;
-        }
+        CollectibleItem nearest = null;
+        float nearestDist = collectRange + 1;
 
-        float distance = Vector3.Distance(players[0].transform.position, players[1].transform.position);
+        var allItems = FindObjectsOfType<CollectibleItem>();
 
-        if (distance > limitDistance)
+        foreach (var item in allItems)
         {
-            if (!timerActive)
+            float d = Vector3.Distance(transform.position, item.transform.position);
+            if (d < collectRange && d < nearestDist)
             {
-                Debug.Log($"[DistanceCheck] Players exceeded limit distance ({distance:F2} > {limitDistance}). Starting timer.");
-                timerActive = true;
-                outOfRangeTimer = 0f;
-            }
-            else
-            {
-                outOfRangeTimer += Time.fixedDeltaTime;
-                Debug.Log($"[DistanceCheck] Players still out of range for {outOfRangeTimer:F2} seconds.");
-                if (outOfRangeTimer >= outOfRangeDuration)
-                {
-                    Debug.Log("[DistanceCheck] BOOOOM Players failed to get within range..");
-                    foreach (var p in players)
-                    {
-                        NetworkObject netObj = p.GetComponent<NetworkObject>();
-                        if (netObj != null)
-                            netObj.Despawn(true); // true = destroy
-                        else
-                            Destroy(p.gameObject);
-                    }
-                    timerActive = false;
-                    outOfRangeTimer = 0f;
-                }
+                nearest = item;
+                nearestDist = d;
             }
         }
-        else if (distance > warningDistance)
+
+        if (nearest == null && floatingFText != null)
         {
-            Debug.Log($"[DistanceCheck] Warning: Players are far apart! Distance: {distance:F2}");
-            timerActive = false;
-            outOfRangeTimer = 0f;
+            Destroy(floatingFText);
+            floatingFText = null;
         }
-        else
+
+        if (nearest != currentItem)
         {
-            timerActive = false;
-            outOfRangeTimer = 0f;
+            currentItem = nearest;
+            UpdateFloatingUIText();
         }
     }
 
+    void UpdateFloatingUIText()
+    {
+        if (floatingFText != null)
+            Destroy(floatingFText);
+
+        if (currentItem == null) return;
+
+        floatingFText = new GameObject("PressF_UI");
+        var tm = floatingFText.AddComponent<TextMesh>();
+
+        tm.text = "F";
+        tm.fontSize = 64;
+        tm.characterSize = 0.1f;
+        tm.anchor = TextAnchor.MiddleCenter;
+
+        floatingFText.transform.position = currentItem.transform.position + Vector3.up * 2f;
+    }
+
+    // -----------------------------------------------------
+    // ITEM COLLECTION (SERVER SIDE)
+    // -----------------------------------------------------
+    [ServerRpc]
+    void CollectItemServerRpc(NetworkObjectReference itemRef)
+    {
+        if (!itemRef.TryGet(out NetworkObject obj)) return;
+
+        Debug.Log("[ITEM] Collected!");
+
+        if (floatingFText != null)
+        {
+            Destroy(floatingFText);
+            floatingFText = null;
+        }
+
+        currentItem = null;
+        obj.Despawn();
+        Destroy(obj.gameObject);
+    }
+
+    // -----------------------------------------------------
+    // EXISTING CORE FUNCTIONS (UNCHANGED)
+    // -----------------------------------------------------
     [ServerRpc]
     void SendInputServerRpc(Vector3 input)
     {
@@ -230,13 +329,19 @@ public class PlayerMovement : NetworkBehaviour
     [ServerRpc]
     void JumpServerRpc()
     {
-        if (isGrounded)
-        {
-            rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        float groundCheckDistance = 0.2f;
+        float groundOffset = 0.9f;
 
-            isGrounded = false;
-        }
+        Vector3 rayOrigin = transform.position + Vector3.down * groundOffset;
+        bool canJump = Physics.Raycast(rayOrigin, Vector3.down, groundCheckDistance);
+
+        Debug.DrawRay(rayOrigin, Vector3.down * groundCheckDistance, canJump ? Color.green : Color.red, 1f);
+        Debug.Log($"[Jump] Can jump: {canJump}");
+
+        if (!canJump) return;
+
+        rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
     }
 
     void RotateTowards(Vector3 movement)
@@ -248,35 +353,65 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    // -----------------------------
-    // COLLIDER-BASED GROUND DETECTION
-    // -----------------------------
-    private void OnCollisionEnter(Collision collision)
+    void CheckPlayersDistance()
     {
-        if (!IsServer) return;
-
-        if (collision.gameObject.CompareTag("Ground"))
-            SetGrounded(true);
-    }
-
-    private void OnCollisionExit(Collision collision)
-    {
-        if (!IsServer) return;
-
-        if (collision.gameObject.CompareTag("Ground"))
-            SetGrounded(false);
-    }
-
-    private void SetGrounded(bool grounded)
-    {
-        isGrounded = grounded;
-
-        // Debug log only when state changes
-        if (isGrounded != lastGroundedState)
+        var players = FindObjectsOfType<PlayerMovement>();
+        if (players.Length < 2)
         {
-            Debug.Log(isGrounded ? "GROUND DETECTED" : "LEFT GROUND");
-            lastGroundedState = isGrounded;
+            outOfRangeTimer = 0f;
+            timerActive = false;
+            return;
         }
+
+        PlayerMovement p1 = players[0];
+        PlayerMovement p2 = players[1];
+
+        float distance = Vector3.Distance(p1.transform.position, p2.transform.position);
+
+        if (distance > warningDistance && distance <= limitDistance)
+        {
+            Debug.Log($"[DistanceCheck] Warning! ({distance:F2}m)");
+            outOfRangeTimer = 0f;
+            timerActive = false;
+            return;
+        }
+
+        if (distance > limitDistance)
+        {
+            if (!timerActive)
+            {
+                Debug.Log($"[DistanceCheck] Limit exceeded ({distance:F2}m). Timer starting...");
+                timerActive = true;
+                outOfRangeTimer = 0f;
+            }
+            else
+            {
+                outOfRangeTimer += Time.fixedDeltaTime;
+                Debug.Log($"[DistanceCheck] Out of range for {outOfRangeTimer:F2}/{outOfRangeDuration}");
+
+                if (outOfRangeTimer >= outOfRangeDuration)
+                {
+                    Debug.Log("[DistanceCheck] DESPAWNING both players");
+
+                    foreach (var p in players)
+                    {
+                        NetworkObject n = p.GetComponent<NetworkObject>();
+                        if (n && n.IsSpawned)
+                        {
+                            n.Despawn(false);
+                            Destroy(n.gameObject);
+                        }
+                    }
+
+                    timerActive = false;
+                    outOfRangeTimer = 0f;
+                }
+            }
+            return;
+        }
+
+        timerActive = false;
+        outOfRangeTimer = 0f;
     }
 
     void ApplyAnimationState(bool walking)
