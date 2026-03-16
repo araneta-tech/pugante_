@@ -1,21 +1,29 @@
 using System;
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class NetworkUI : MonoBehaviour
 {
+    [Header("Network Buttons")]
     [SerializeField] private Button hostButton;
     [SerializeField] private Button clientButton;
     [SerializeField] private Button stopHostButton;
+
+    [Header("Network Mode Panel (Host / Client UI)")]
+    [SerializeField] private GameObject networkModePanel; // Panel containing host/client buttons
+
     [Header("Character Selection UI")]
-    [SerializeField] private GameObject characterSelectPanel; // Assign your character selection UI panel here
-    [SerializeField] private CharacterSelectUI characterSelectUI; // Reference to your character select UI script
+    [SerializeField] private GameObject characterSelectPanel;
+    [SerializeField] private CharacterSelectUI characterSelectUI;
+
     [Header("Back Button")]
-    public Button backButton; // Now public for assignment from other scripts or Inspector
+    public Button backButton;
 
     private enum NetworkMode { None, Host, Client }
     private NetworkMode pendingMode = NetworkMode.None;
+
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
 
@@ -40,12 +48,11 @@ public class NetworkUI : MonoBehaviour
 
     private void Update()
     {
-        stopHostButton.gameObject.SetActive(NetworkManager.Singleton.IsHost && Application.isPlaying);
+        if (NetworkManager.Singleton != null)
+            stopHostButton.gameObject.SetActive(NetworkManager.Singleton.IsHost && Application.isPlaying);
 
-        // Back button logic
         if (backButton != null)
         {
-            // Show back button only during character selection or while playing
             if (characterSelectPanel.activeSelf || isPlaying)
                 backButton.gameObject.SetActive(true);
             else
@@ -56,46 +63,56 @@ public class NetworkUI : MonoBehaviour
     private void OnHostButtonClicked()
     {
         pendingMode = NetworkMode.Host;
+        DisableNetworkModePanel();
         ShowCharacterSelect();
     }
 
     private void OnClientButtonClicked()
     {
         pendingMode = NetworkMode.Client;
+        DisableNetworkModePanel();
         ShowCharacterSelect();
+    }
+
+    // NEW FUNCTION: Safely disable the Host/Client panel
+    private void DisableNetworkModePanel()
+    {
+        if (networkModePanel != null)
+            networkModePanel.SetActive(false);
     }
 
     private void ShowCharacterSelect()
     {
         hostButton.gameObject.SetActive(false);
         clientButton.gameObject.SetActive(false);
-        characterSelectPanel.SetActive(true);
+
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(true);
+
         hasSelectedCharacter = false;
         isPlaying = false;
-        // Optionally, reset character selection UI state here
     }
 
-    // This should be called by your CharacterSelectUI when a character is chosen
+    // Called from CharacterSelectUI
     public void OnCharacterSelected(int characterIndex)
     {
         hasSelectedCharacter = true;
-        characterSelectPanel.SetActive(false);
 
-        // Start the network session after character selection
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(false);
+
         if (pendingMode == NetworkMode.Host)
             NetworkManager.Singleton.StartHost();
         else if (pendingMode == NetworkMode.Client)
             NetworkManager.Singleton.StartClient();
 
-        // Set the character index for the local player after network spawn
         StartCoroutine(SetCharacterIndexWhenReady(characterIndex));
 
         isPlaying = true;
     }
 
-    private System.Collections.IEnumerator SetCharacterIndexWhenReady(int characterIndex)
+    private IEnumerator SetCharacterIndexWhenReady(int characterIndex)
     {
-        // Wait until the local player object is spawned
         while (NetworkManager.Singleton.LocalClient == null ||
                NetworkManager.Singleton.LocalClient.PlayerObject == null)
         {
@@ -103,35 +120,40 @@ public class NetworkUI : MonoBehaviour
         }
 
         var playerMovement = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<PlayerMovement>();
+
         if (playerMovement != null)
-        {
             playerMovement.SelectCharacter(characterIndex);
-        }
     }
 
     private void StopHostButtonOnClick()
     {
-        NetworkManager.Singleton.Shutdown();
+        if (NetworkManager.Singleton != null)
+            NetworkManager.Singleton.Shutdown();
+
         ReturnToHostClientSelection();
     }
 
-    // Public method for the back button
     public void OnBackButtonClicked()
     {
         if (characterSelectPanel.activeSelf)
         {
-            // If in character selection, go back to host/client selection
             characterSelectPanel.SetActive(false);
+
+            if (networkModePanel != null)
+                networkModePanel.SetActive(true);
+
             hostButton.gameObject.SetActive(true);
             clientButton.gameObject.SetActive(true);
+
             pendingMode = NetworkMode.None;
             hasSelectedCharacter = false;
             isPlaying = false;
         }
         else if (isPlaying)
         {
-            // If in game, stop the network session and return to host/client selection
-            NetworkManager.Singleton.Shutdown();
+            if (NetworkManager.Singleton != null)
+                NetworkManager.Singleton.Shutdown();
+
             ReturnToHostClientSelection();
         }
     }
@@ -140,7 +162,13 @@ public class NetworkUI : MonoBehaviour
     {
         hostButton.gameObject.SetActive(true);
         clientButton.gameObject.SetActive(true);
-        characterSelectPanel.SetActive(false);
+
+        if (networkModePanel != null)
+            networkModePanel.SetActive(true);
+
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(false);
+
         pendingMode = NetworkMode.None;
         hasSelectedCharacter = false;
         isPlaying = false;
