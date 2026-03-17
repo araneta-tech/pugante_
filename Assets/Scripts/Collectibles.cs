@@ -4,7 +4,6 @@ using System.Collections.Generic;
 
 public class CollectibleItem : NetworkBehaviour
 {
-    // Global list of all active collectible items
     public static readonly List<CollectibleItem> ActiveItems = new List<CollectibleItem>();
 
     [Header("Item Settings")]
@@ -13,7 +12,6 @@ public class CollectibleItem : NetworkBehaviour
     [Header("Floating UI")]
     public bool showFloatingF = true;
 
-    // Assign your UI text object here
     [SerializeField] private GameObject floatingUIText;
 
     [HideInInspector]
@@ -48,9 +46,6 @@ public class CollectibleItem : NetworkBehaviour
         }
     }
 
-    // --------------------------
-    // PLAYER DETECTION
-    // --------------------------
     bool CheckPlayerProximity()
     {
         Collider[] hits = Physics.OverlapSphere(transform.position, detectRange);
@@ -66,9 +61,6 @@ public class CollectibleItem : NetworkBehaviour
         return false;
     }
 
-    // --------------------------
-    // FLOATING UI CONTROL
-    // --------------------------
     void UpdateFloatingUIText()
     {
         if (floatingUIText == null) return;
@@ -83,9 +75,6 @@ public class CollectibleItem : NetworkBehaviour
         }
     }
 
-    // --------------------------
-    // SERVER-SIDE COLLECTION
-    // --------------------------
     [ServerRpc(RequireOwnership = false)]
     public void CollectServerRpc()
     {

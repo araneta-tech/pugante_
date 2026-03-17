@@ -42,8 +42,6 @@ public class PatrolAI : MonoBehaviour
 
     private AIState currentState = AIState.Patrol;
 
-    // -----------------------------------------------------
-
     void Start()
     {
         if (agent == null)
@@ -97,10 +95,6 @@ public class PatrolAI : MonoBehaviour
         }
     }
 
-    // -----------------------------------------------------
-    // PATROL
-    // -----------------------------------------------------
-
     void Patrol()
     {
         if (!agent.pathPending && agent.remainingDistance < 0.5f)
@@ -112,10 +106,6 @@ public class PatrolAI : MonoBehaviour
             agent.SetDestination(waypoints[currentIndex].position);
         }
     }
-
-    // -----------------------------------------------------
-    // PLAYER DETECTION
-    // -----------------------------------------------------
 
     void DetectPlayer()
     {
@@ -149,10 +139,6 @@ public class PatrolAI : MonoBehaviour
         }
     }
 
-    // -----------------------------------------------------
-    // ALERT
-    // -----------------------------------------------------
-
     void AlertState()
     {
         Debug.Log("[AI] STATE → ALERT");
@@ -179,10 +165,6 @@ public class PatrolAI : MonoBehaviour
         agent.speed = chaseSpeed;
         currentState = AIState.Chase;
     }
-
-    // -----------------------------------------------------
-    // CHASE
-    // -----------------------------------------------------
 
     void ChasePlayer()
     {
@@ -227,10 +209,6 @@ public class PatrolAI : MonoBehaviour
         }
     }
 
-    // -----------------------------------------------------
-    // ATTACK
-    // -----------------------------------------------------
-
     void AttackPlayer()
     {
         if (detectedPlayer == null)
@@ -252,10 +230,6 @@ public class PatrolAI : MonoBehaviour
         }
     }
 
-    // -----------------------------------------------------
-    // RETURN TO PATROL
-    // -----------------------------------------------------
-
     void ReturnToPatrol()
     {
         Debug.Log("[AI] Returning to patrol");
@@ -271,10 +245,6 @@ public class PatrolAI : MonoBehaviour
             currentState = AIState.Patrol;
         }
     }
-
-    // -----------------------------------------------------
-    // DEBUG GIZMOS
-    // -----------------------------------------------------
 
     void OnDrawGizmosSelected()
     {

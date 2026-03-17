@@ -1,106 +1,169 @@
 ﻿using UnityEngine;
 using Unity.Netcode;
 
-public class NetworkPushableObject : NetworkBehaviour
+public class MovableObject : NetworkBehaviour
 {
-    [Header("Pseudo Rigidbody Settings")]
-    public float mass = 1f;
-    public float friction = 4f;
-    public float pushForce = 8f;
-
     [Header("Interaction Settings")]
-    public float interactionRange = 3f; // Distance at which "F" appears
+    public float interactionRange = 3f;
+    public float holdDistance = 2.5f;
+    public float holdHeight = 1.0f;
 
-    private Vector3 serverVelocity;
-    private NetworkVariable<Vector3> netPosition = new NetworkVariable<Vector3>(
-        writePerm: NetworkVariableWritePermission.Server);
+    [Header("Follow Settings")]
+    public float followSpeed = 5f;
 
-    private NetworkVariable<Vector3> netVelocity = new NetworkVariable<Vector3>(
-        writePerm: NetworkVariableWritePermission.Server);
+    private NetworkVariable<bool> isHeld = new NetworkVariable<bool>(false);
+    private NetworkVariable<ulong> holderId = new NetworkVariable<ulong>(0);
 
-    // Local floating F for each client
-    private GameObject floatingFText;
+    private GameObject floatingF;
+    private Rigidbody rb;
+    private Collider objectCollider;
+    private Collider playerCollider;
 
-    private void Start()
+    private void Awake()
     {
-        if (IsServer)
-        {
-            netPosition.Value = transform.position;
-            netVelocity.Value = Vector3.zero;
-        }
+        rb = GetComponent<Rigidbody>();
+        objectCollider = GetComponent<Collider>();
+        rb.isKinematic = true; // Always kinematic to prevent being pushed when not held
     }
 
     private void Update()
     {
-        if (IsServer)
-        {
-            ServerSimulatePhysics();
-        }
-
-        // Each client independently checks if a local player is near
-        ShowFloatingFTextForLocalPlayer();
+        ShowFloatingF();
+        if (IsOwner) CheckInput();
+        if (IsServer && isHeld.Value) FollowPlayer();
     }
 
-    private void ServerSimulatePhysics()
+    private void CheckInput()
     {
-        transform.position += serverVelocity * Time.deltaTime;
-        serverVelocity = Vector3.Lerp(serverVelocity, Vector3.zero, friction * Time.deltaTime);
+        PlayerMovement player = GetLocalPlayer();
+        if (player == null) return;
 
-        netPosition.Value = transform.position;
-        netVelocity.Value = serverVelocity;
+        if (player.SelectedCharacterIndex != 1) return;
+
+        float dist = Vector3.Distance(transform.position, player.transform.position);
+        if (dist <= interactionRange && Input.GetKeyDown(KeyCode.F))
+        {
+            if (isHeld.Value) ReleaseObjectServerRpc(player.OwnerClientId);
+            else ToggleHoldServerRpc(player.OwnerClientId);
+        }
     }
 
-    // ------------------------------
-    // FLOATING "F" TEXT FOR LOCAL PLAYER NEARBY
-    // ------------------------------
-    void ShowFloatingFTextForLocalPlayer()
+    private PlayerMovement GetLocalPlayer()
     {
-        // Find the local player for this client
-        PlayerMovement localPlayer = null;
-        foreach (var player in FindObjectsOfType<PlayerMovement>())
+        foreach (var p in FindObjectsOfType<PlayerMovement>())
         {
-            if (player.IsOwner && player.OwnerClientId == NetworkManager.Singleton.LocalClientId)
-            {
-                localPlayer = player;
-                break;
-            }
+            if (p.IsOwner && p.OwnerClientId == NetworkManager.Singleton.LocalClientId)
+                return p;
         }
+        return null;
+    }
 
-        if (localPlayer == null)
+    [ServerRpc(RequireOwnership = false)]
+    private void ToggleHoldServerRpc(ulong playerId)
+    {
+        var playerObj = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject;
+        if (playerObj == null) return;
+
+        PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
+        playerCollider = playerObj.GetComponent<Collider>();
+
+        if (!isHeld.Value)
         {
-            DestroyFloatingText();
-            return;
-        }
+            isHeld.Value = true;
+            holderId.Value = playerId;
 
-        float dist = Vector3.Distance(transform.position, localPlayer.transform.position);
+            rb.isKinematic = false; // Enable physics when object is held
+            if (playerCollider != null && objectCollider != null)
+                Physics.IgnoreCollision(playerCollider, objectCollider, true); // Ignore collisions
 
-        if (dist <= interactionRange)
-        {
-            if (floatingFText == null)
-            {
-                floatingFText = new GameObject("PressF_UI");
-                var tm = floatingFText.AddComponent<TextMesh>();
-                tm.text = "F";
-                tm.fontSize = 64;
-                tm.characterSize = 0.1f;
-                tm.anchor = TextAnchor.MiddleCenter;
-            }
-
-            // Position the F above the object
-            floatingFText.transform.position = transform.position + Vector3.up * 2f;
+            player.SetSpeedMultiplier(0.5f); // Slow down player when holding
         }
         else
         {
-            DestroyFloatingText();
+            ReleaseObjectServerRpc(playerId); // Release object if already held
         }
     }
 
-    void DestroyFloatingText()
+    [ServerRpc(RequireOwnership = false)]
+    private void ReleaseObjectServerRpc(ulong playerId)
     {
-        if (floatingFText != null)
+        isHeld.Value = false;
+        holderId.Value = 0;
+
+        rb.isKinematic = true; // Keep object kinematic when released
+        if (playerCollider != null && objectCollider != null)
+            Physics.IgnoreCollision(playerCollider, objectCollider, false); // Restore collision
+
+        var playerObj = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject;
+        if (playerObj != null)
         {
-            Destroy(floatingFText);
-            floatingFText = null;
+            PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
+            player.RestoreSpeed(); // Restore normal player speed
         }
+    }
+
+    private void FollowPlayer()
+    {
+        if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(holderId.Value)) return;
+
+        var playerObj = NetworkManager.Singleton.ConnectedClients[holderId.Value].PlayerObject;
+        if (playerObj == null) return;
+
+        PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
+        if (player == null) return;
+
+        Vector3 targetPosition = player.transform.position + player.transform.forward * holdDistance + Vector3.up * holdHeight;
+        transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
+    }
+
+    private void ShowFloatingF()
+    {
+        PlayerMovement player = GetLocalPlayer();
+        if (player == null || player.SelectedCharacterIndex != 1)
+        {
+            DestroyFloatingF();
+            return;
+        }
+
+        float dist = Vector3.Distance(transform.position, player.transform.position);
+
+        if (dist <= interactionRange)
+        {
+            if (floatingF == null)
+            {
+                floatingF = new GameObject("PressF");
+                TextMesh text = floatingF.AddComponent<TextMesh>();
+                text.fontSize = 50;
+                text.characterSize = 0.2f;
+                text.anchor = TextAnchor.MiddleCenter;
+
+                floatingF.AddComponent<FaceCamera>();
+            }
+
+            floatingF.GetComponent<TextMesh>().text = isHeld.Value ? "[F] Release" : "[F] Grab";
+            floatingF.transform.position = transform.position + Vector3.up * 2f;
+            floatingF.SetActive(true);
+        }
+        else
+        {
+            DestroyFloatingF();
+        }
+    }
+
+    private void DestroyFloatingF()
+    {
+        if (floatingF != null)
+        {
+            floatingF.SetActive(false);
+        }
+    }
+}
+
+public class FaceCamera : MonoBehaviour
+{
+    private void LateUpdate()
+    {
+        if (Camera.main != null)
+            transform.forward = Camera.main.transform.forward;
     }
 }
