@@ -450,6 +450,12 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 8959501769588247290}
   m_SourcePrefab: {fileID: 100100000, guid: d022fb7024c63bd4eb96b879d57f1d1e, type: 3}
+--- !u!4 &8103544638888057991 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: d022fb7024c63bd4eb96b879d57f1d1e,
+    type: 3}
+  m_PrefabInstance: {fileID: 8646677738604526444}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &8880608386803156541 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
@@ -464,7 +470,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8880608386803156541}
-  m_Enabled: 0
+  m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: b847281a93a222f4f841e0d949465d48, type: 2}
   m_CullingMode: 0
@@ -523,6 +529,11 @@ MonoBehaviour:
   warningDistance: 15
   limitDistance: 20
   outOfRangeDuration: 5
+  groundCheck: {fileID: 8103544638888057991}
+  groundRadius: 0.4
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 8
   collectRange: 2
 --- !u!136 &88952966652195418
 CapsuleCollider:

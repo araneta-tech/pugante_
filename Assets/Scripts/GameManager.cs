@@ -8,7 +8,7 @@ public class GameManager : NetworkBehaviour
     public static GameManager Instance;
 
     [Header("UI")]
-    public GameObject endScreen; // Assign your UI Text GameObject
+    public GameObject endScreen;
 
     private void Awake()
     {
@@ -31,7 +31,7 @@ public class GameManager : NetworkBehaviour
 
     private IEnumerator RestartRoutine()
     {
-        yield return new WaitForSeconds(2f); // Visible delay
+        yield return new WaitForSeconds(2f);
         NetworkManager.Singleton.SceneManager.LoadScene("YourSceneName", LoadSceneMode.Single);
     }
 }

@@ -42,7 +42,10 @@ public class PlayerMovement : NetworkBehaviour
     private Rigidbody rb;
 
     private bool isGrounded;
+    private bool isTouchingGroundTag;
     private Vector3 lastInput;
+
+    private bool jumpRequested = false;
 
     private NetworkVariable<int> selectedCharacterIndex = new NetworkVariable<int>();
 
@@ -155,6 +158,15 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
+    // ✅ NEW: Input handled here
+    void Update()
+    {
+        if (!IsOwner || !IsSpawned) return;
+
+        if (Input.GetKeyDown(KeyCode.K))
+            RequestJumpServerRpc();
+    }
+
     void FixedUpdate()
     {
         if (!IsSpawned) return;
@@ -162,7 +174,22 @@ public class PlayerMovement : NetworkBehaviour
         UpdateGroundCheck();
 
         if (IsServer)
+        {
             ServerMovement();
+
+            // ✅ Physics jump here ONLY
+            if (jumpRequested && (isGrounded || isTouchingGroundTag))
+            {
+                jumpRequested = false;
+
+                Debug.Log("JUMP EXECUTED");
+
+                rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+
+                float currentJumpForce = characterConfigs[selectedCharacterIndex.Value].jumpForce;
+                rb.AddForce(Vector3.up * currentJumpForce, ForceMode.Impulse);
+            }
+        }
 
         if (IsOwner)
             HandleInput();
@@ -177,25 +204,9 @@ public class PlayerMovement : NetworkBehaviour
             groundRadius,
             groundLayer
         );
-    }
 
-    void ServerMovement()
-    {
-        float speedMultiplier = interactingWithObject ? 0.5f : 1f;
-        float appliedSpeed = isGrounded ? speed * speedMultiplier : speed * 0.5f * speedMultiplier;
-
-        Vector3 move = lastInput.normalized * appliedSpeed;
-
-        rb.velocity = new Vector3(move.x, rb.velocity.y, move.z);
-
-        RotateTowards(lastInput);
-
-        bool walking = lastInput.magnitude > 0.01f;
-
-        if (isWalkingNet.Value != walking)
-            isWalkingNet.Value = walking;
-
-        CheckPlayersDistance();
+        if (isGrounded)
+            Debug.Log("Can Jump (Sphere Ground Check)");
     }
 
     void HandleInput()
@@ -207,10 +218,34 @@ public class PlayerMovement : NetworkBehaviour
 
         SendInputServerRpc(input);
 
-        if (Input.GetKeyDown(KeyCode.K))
-            JumpServerRpc();
-
         DetectItem();
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    void RequestJumpServerRpc()
+    {
+        jumpRequested = true;
+    }
+
+    void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            isTouchingGroundTag = true;
+            Debug.Log("Can Jump (Touched Ground Tag)");
+        }
+    }
+
+    void OnCollisionStay(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+            isTouchingGroundTag = true;
+    }
+
+    void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+            isTouchingGroundTag = false;
     }
 
     void DetectItem()
@@ -241,13 +276,23 @@ public class PlayerMovement : NetworkBehaviour
         lastInput = input;
     }
 
-    [ServerRpc(RequireOwnership = false)]
-    void JumpServerRpc()
+    void ServerMovement()
     {
-        if (!isGrounded) return;
+        float speedMultiplier = interactingWithObject ? 0.5f : 1f;
+        float appliedSpeed = isGrounded ? speed * speedMultiplier : speed * 0.5f * speedMultiplier;
 
-        rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
-        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        Vector3 move = lastInput.normalized * appliedSpeed;
+
+        rb.velocity = new Vector3(move.x, rb.velocity.y, move.z);
+
+        RotateTowards(lastInput);
+
+        bool walking = lastInput.magnitude > 0.01f;
+
+        if (isWalkingNet.Value != walking)
+            isWalkingNet.Value = walking;
+
+        CheckPlayersDistance();
     }
 
     void RotateTowards(Vector3 movement)

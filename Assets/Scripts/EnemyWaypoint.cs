@@ -4,6 +4,7 @@ using UnityEngine.AI;
 public class PatrolAI : MonoBehaviour
 {
     public NavMeshAgent agent;
+    public Animator animator; // ✅ NEW: reference to Animator
 
     [Header("Waypoint System")]
     public WaypointHolder waypointHolder;
@@ -46,6 +47,9 @@ public class PatrolAI : MonoBehaviour
     {
         if (agent == null)
             agent = GetComponent<NavMeshAgent>();
+
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>(); // assign if not set
 
         if (waypointHolder == null)
         {
@@ -93,6 +97,10 @@ public class PatrolAI : MonoBehaviour
                 ReturnToPatrol();
                 break;
         }
+
+        // ✅ Reset animation boolean if not attacking
+        if (animator != null && currentState != AIState.Attack)
+            animator.SetBool("isAttacking", false);
     }
 
     void Patrol()
@@ -222,6 +230,10 @@ public class PatrolAI : MonoBehaviour
         agent.SetDestination(transform.position);
 
         Debug.Log("[AI] ATTACKING PLAYER");
+
+        // ✅ Trigger attack animation
+        if (animator != null)
+            animator.SetBool("isAttacking", true);
 
         if (distance > attackRadius)
         {

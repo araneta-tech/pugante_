@@ -11,17 +11,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.9159343
+      value: 15.1505995
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.31
+      value: -3.3580704
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -1.4768034
+      value: 26.992867
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
@@ -343,6 +343,11 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: -1.6811109
       objectReference: {fileID: 0}
+    - target: {fileID: -2291671921866679441, guid: b83a13cb3d061a9459c5afcee50c7d5d,
+        type: 3}
+      propertyPath: m_Name
+      value: GroundCheck
+      objectReference: {fileID: 0}
     - target: {fileID: -2072040086291044643, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -467,6 +472,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Thin Idle
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: b83a13cb3d061a9459c5afcee50c7d5d,
+        type: 3}
+      propertyPath: m_TagString
+      value: Player
       objectReference: {fileID: 0}
     - target: {fileID: 1092408308860062549, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}

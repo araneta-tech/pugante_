@@ -23,7 +23,7 @@ public class MovableObject : NetworkBehaviour
     {
         rb = GetComponent<Rigidbody>();
         objectCollider = GetComponent<Collider>();
-        rb.isKinematic = true; // Always kinematic to prevent being pushed when not held
+        rb.isKinematic = true; 
     }
 
     private void Update()
@@ -72,15 +72,15 @@ public class MovableObject : NetworkBehaviour
             isHeld.Value = true;
             holderId.Value = playerId;
 
-            rb.isKinematic = false; // Enable physics when object is held
+            rb.isKinematic = false; 
             if (playerCollider != null && objectCollider != null)
-                Physics.IgnoreCollision(playerCollider, objectCollider, true); // Ignore collisions
+                Physics.IgnoreCollision(playerCollider, objectCollider, true); 
 
-            player.SetSpeedMultiplier(0.5f); // Slow down player when holding
+            player.SetSpeedMultiplier(0.5f);
         }
         else
         {
-            ReleaseObjectServerRpc(playerId); // Release object if already held
+            ReleaseObjectServerRpc(playerId); 
         }
     }
 
@@ -90,15 +90,15 @@ public class MovableObject : NetworkBehaviour
         isHeld.Value = false;
         holderId.Value = 0;
 
-        rb.isKinematic = true; // Keep object kinematic when released
+        rb.isKinematic = true; 
         if (playerCollider != null && objectCollider != null)
-            Physics.IgnoreCollision(playerCollider, objectCollider, false); // Restore collision
+            Physics.IgnoreCollision(playerCollider, objectCollider, false); 
 
         var playerObj = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject;
         if (playerObj != null)
         {
             PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
-            player.RestoreSpeed(); // Restore normal player speed
+            player.RestoreSpeed(); 
         }
     }
 
