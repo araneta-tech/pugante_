@@ -1,10 +1,11 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
+using Unity.Netcode;
 
 public class PatrolAI : MonoBehaviour
 {
     public NavMeshAgent agent;
-    public Animator animator; // ✅ NEW: reference to Animator
+    public Animator animator;
 
     [Header("Waypoint System")]
     public WaypointHolder waypointHolder;
@@ -32,6 +33,9 @@ public class PatrolAI : MonoBehaviour
 
     private float loseTimer = 0f;
 
+    // ✅ Prevent multiple bust triggers
+    private bool hasBusted = false;
+
     private enum AIState
     {
         Patrol,
@@ -49,7 +53,7 @@ public class PatrolAI : MonoBehaviour
             agent = GetComponent<NavMeshAgent>();
 
         if (animator == null)
-            animator = GetComponentInChildren<Animator>(); // assign if not set
+            animator = GetComponentInChildren<Animator>();
 
         if (waypointHolder == null)
         {
@@ -98,7 +102,6 @@ public class PatrolAI : MonoBehaviour
                 break;
         }
 
-        // ✅ Reset animation boolean if not attacking
         if (animator != null && currentState != AIState.Attack)
             animator.SetBool("isAttacking", false);
     }
@@ -117,31 +120,27 @@ public class PatrolAI : MonoBehaviour
 
     void DetectPlayer()
     {
+        if (NetworkUI.Instance != null && !NetworkUI.Instance.IsPlaying)
+            return; // Don't detect players until the game starts
+
         Collider[] hits = Physics.OverlapSphere(transform.position, lineOfSightRadius);
 
         foreach (Collider hit in hits)
         {
             PlayerMovement player = hit.GetComponent<PlayerMovement>();
-
-            if (player == null)
-                continue;
+            if (player == null) continue;
 
             Vector3 dir = (player.transform.position - transform.position).normalized;
             float angle = Vector3.Angle(transform.forward, dir);
 
-            if (angle > viewAngle / 2)
-                continue;
+            if (angle > viewAngle / 2) continue;
 
             float dist = Vector3.Distance(transform.position, player.transform.position);
 
             if (!Physics.Raycast(transform.position + Vector3.up, dir, dist, obstacleLayer))
             {
                 detectedPlayer = player.transform;
-
-                Debug.Log("[AI] PLAYER SPOTTED → ALERT");
-
                 currentState = AIState.Alert;
-
                 return;
             }
         }
@@ -164,6 +163,7 @@ public class PatrolAI : MonoBehaviour
         if (distance <= attackRadius)
         {
             Debug.Log("[AI] Player in attack range → ATTACK");
+            hasBusted = false;
             currentState = AIState.Attack;
             return;
         }
@@ -191,6 +191,7 @@ public class PatrolAI : MonoBehaviour
         if (distance <= attackRadius)
         {
             Debug.Log("[AI] ATTACK RANGE REACHED");
+            hasBusted = false;
             currentState = AIState.Attack;
             return;
         }
@@ -207,7 +208,6 @@ public class PatrolAI : MonoBehaviour
 
                 detectedPlayer = null;
                 loseTimer = 0;
-
                 currentState = AIState.ReturnToPatrol;
             }
         }
@@ -231,13 +231,32 @@ public class PatrolAI : MonoBehaviour
 
         Debug.Log("[AI] ATTACKING PLAYER");
 
-        // ✅ Trigger attack animation
+        // ✅ Animation
         if (animator != null)
             animator.SetBool("isAttacking", true);
 
+        // ✅ NETWORKED BUST LOGIC
+        if (distance <= attackRadius && !hasBusted)
+        {
+            hasBusted = true;
+
+            if (GameManager.Instance != null &&
+                GameManager.Instance.IsSpawned &&
+                NetworkManager.Singleton != null &&
+                NetworkManager.Singleton.IsServer)
+            {
+                Debug.Log("[AI] PLAYER BUSTED → GameManager");
+
+                GameManager.Instance.PlayerBusted();
+            }
+        }
+
+        // Player escaped
         if (distance > attackRadius)
         {
             Debug.Log("[AI] Player escaped attack → CHASE");
+
+            hasBusted = false; // ✅ allow future bust again
             currentState = AIState.Chase;
         }
     }
@@ -247,13 +266,11 @@ public class PatrolAI : MonoBehaviour
         Debug.Log("[AI] Returning to patrol");
 
         agent.speed = patrolSpeed;
-
         agent.SetDestination(waypoints[currentIndex].position);
 
         if (!agent.pathPending && agent.remainingDistance < 1f)
         {
             Debug.Log("[AI] STATE → PATROL");
-
             currentState = AIState.Patrol;
         }
     }

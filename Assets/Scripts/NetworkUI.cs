@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
@@ -6,6 +6,8 @@ using UnityEngine.UI;
 
 public class NetworkUI : MonoBehaviour
 {
+    public static NetworkUI Instance;
+
     [Header("Network Buttons")]
     [SerializeField] private Button hostButton;
     [SerializeField] private Button clientButton;
@@ -23,6 +25,12 @@ public class NetworkUI : MonoBehaviour
 
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
+    public bool IsPlaying => isPlaying; // ✅ Public getter for other scripts
+
+    private void Awake()
+    {
+        Instance = this;
+    }
 
     private void Start()
     {
@@ -42,16 +50,8 @@ public class NetworkUI : MonoBehaviour
         if (NetworkManager.Singleton != null)
             stopHostButton.gameObject.SetActive(NetworkManager.Singleton.IsHost && Application.isPlaying);
 
-        if (hasSelectedCharacter)
-        {
-            hostButton.interactable = false;
-            clientButton.interactable = false;
-        }
-        else
-        {
-            hostButton.interactable = true;
-            clientButton.interactable = true;
-        }
+        hostButton.interactable = !hasSelectedCharacter;
+        clientButton.interactable = !hasSelectedCharacter;
     }
 
     private void OnHostButtonClicked()
