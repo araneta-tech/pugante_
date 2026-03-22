@@ -23,6 +23,10 @@ public class PatrolAI : MonoBehaviour
     [Header("Combat Settings")]
     public float attackRadius = 2f;
 
+    [Header("Attack Timing")]
+    public float attackDelay = 0.8f;
+    private float attackTimer = 0f;
+
     [Header("Enemy Speed")]
     public float patrolSpeed = 2f;
     public float chaseSpeed = 4f;
@@ -33,7 +37,6 @@ public class PatrolAI : MonoBehaviour
 
     private float loseTimer = 0f;
 
-    // ✅ Prevent multiple bust triggers
     private bool hasBusted = false;
 
     private enum AIState
@@ -57,7 +60,6 @@ public class PatrolAI : MonoBehaviour
 
         if (waypointHolder == null)
         {
-            Debug.LogError("[AI] No WaypointHolder assigned.");
             return;
         }
 
@@ -65,13 +67,10 @@ public class PatrolAI : MonoBehaviour
 
         if (waypoints.Length == 0)
         {
-            Debug.LogWarning("[AI] No waypoints found.");
             return;
         }
 
         agent.speed = patrolSpeed;
-
-        Debug.Log("[AI] STATE → PATROL");
 
         agent.SetDestination(waypoints[currentIndex].position);
     }
@@ -112,8 +111,6 @@ public class PatrolAI : MonoBehaviour
         {
             currentIndex = (currentIndex + 1) % waypoints.Length;
 
-            Debug.Log("[AI] Patrol → Waypoint " + currentIndex);
-
             agent.SetDestination(waypoints[currentIndex].position);
         }
     }
@@ -121,7 +118,7 @@ public class PatrolAI : MonoBehaviour
     void DetectPlayer()
     {
         if (NetworkUI.Instance != null && !NetworkUI.Instance.IsPlaying)
-            return; // Don't detect players until the game starts
+            return;
 
         Collider[] hits = Physics.OverlapSphere(transform.position, lineOfSightRadius);
 
@@ -148,7 +145,6 @@ public class PatrolAI : MonoBehaviour
 
     void AlertState()
     {
-        Debug.Log("[AI] STATE → ALERT");
 
         if (detectedPlayer == null)
         {
@@ -162,13 +158,10 @@ public class PatrolAI : MonoBehaviour
 
         if (distance <= attackRadius)
         {
-            Debug.Log("[AI] Player in attack range → ATTACK");
             hasBusted = false;
             currentState = AIState.Attack;
             return;
         }
-
-        Debug.Log("[AI] Confirming target → CHASE");
 
         agent.speed = chaseSpeed;
         currentState = AIState.Chase;
@@ -186,11 +179,8 @@ public class PatrolAI : MonoBehaviour
 
         agent.SetDestination(detectedPlayer.position);
 
-        Debug.Log("[AI] CHASING PLAYER. Distance: " + distance);
-
         if (distance <= attackRadius)
         {
-            Debug.Log("[AI] ATTACK RANGE REACHED");
             hasBusted = false;
             currentState = AIState.Attack;
             return;
@@ -200,11 +190,8 @@ public class PatrolAI : MonoBehaviour
         {
             loseTimer += Time.deltaTime;
 
-            Debug.Log("[AI] Losing player timer: " + loseTimer);
-
             if (loseTimer >= loseTime)
             {
-                Debug.Log("[AI] PLAYER LOST → RETURN TO PATROL");
 
                 detectedPlayer = null;
                 loseTimer = 0;
@@ -229,48 +216,48 @@ public class PatrolAI : MonoBehaviour
 
         agent.SetDestination(transform.position);
 
-        Debug.Log("[AI] ATTACKING PLAYER");
-
-        // ✅ Animation
         if (animator != null)
             animator.SetBool("isAttacking", true);
 
-        // ✅ NETWORKED BUST LOGIC
-        if (distance <= attackRadius && !hasBusted)
+        if (!hasBusted && attackTimer == 0f)
         {
-            hasBusted = true;
+            attackTimer = attackDelay;
+        }
 
-            if (GameManager.Instance != null &&
-                GameManager.Instance.IsSpawned &&
-                NetworkManager.Singleton != null &&
-                NetworkManager.Singleton.IsServer)
+        if (!hasBusted)
+        {
+            attackTimer -= Time.deltaTime;
+
+            if (attackTimer <= 0f && distance <= attackRadius)
             {
-                Debug.Log("[AI] PLAYER BUSTED → GameManager");
+                hasBusted = true;
+                attackTimer = 0f;
 
-                GameManager.Instance.PlayerBusted();
+                if (GameManager.Instance != null &&
+                    GameManager.Instance.IsSpawned &&
+                    NetworkManager.Singleton != null &&
+                    NetworkManager.Singleton.IsServer)
+                {
+                    GameManager.Instance.PlayerBusted();
+                }
             }
         }
 
-        // Player escaped
         if (distance > attackRadius)
         {
-            Debug.Log("[AI] Player escaped attack → CHASE");
-
-            hasBusted = false; // ✅ allow future bust again
+            hasBusted = false;
+            attackTimer = 0f;
             currentState = AIState.Chase;
         }
     }
 
     void ReturnToPatrol()
     {
-        Debug.Log("[AI] Returning to patrol");
-
         agent.speed = patrolSpeed;
         agent.SetDestination(waypoints[currentIndex].position);
 
         if (!agent.pathPending && agent.remainingDistance < 1f)
         {
-            Debug.Log("[AI] STATE → PATROL");
             currentState = AIState.Patrol;
         }
     }

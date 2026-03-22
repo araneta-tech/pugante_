@@ -360,4 +360,30 @@ public class PlayerMovement : NetworkBehaviour
     {
         speed = characterConfigs[selectedCharacterIndex.Value].speed;
     }
+
+    public void RespawnAtCheckpoint(Vector3 position)
+    {
+        if (!IsServer || !IsSpawned) return;
+
+        lastInput = Vector3.zero;
+        jumpRequested = false;
+
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep(); 
+        }
+
+        transform.position = position;
+
+        if (rb != null)
+        {
+            rb.WakeUp();
+        }
+
+        animator?.SetBool("isWalking", false);
+
+        Debug.Log($"[PlayerMovement] Respawned at {position}");
+    }
 }

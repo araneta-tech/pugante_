@@ -25,7 +25,7 @@ public class NetworkUI : MonoBehaviour
 
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
-    public bool IsPlaying => isPlaying; // ✅ Public getter for other scripts
+    public bool IsPlaying => isPlaying; 
 
     private void Awake()
     {

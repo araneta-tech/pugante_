@@ -8,33 +8,28 @@ public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
 
-    [Header("Lives")]
+    [Header("Lives Settings")]
     public int maxLives = 3;
     private NetworkVariable<int> currentLives = new NetworkVariable<int>();
 
     [Header("Checkpoints")]
     public Transform[] checkpoints;
     private NetworkVariable<int> currentCheckpointIndex = new NetworkVariable<int>(0);
-
     private HashSet<int> activatedCheckpoints = new HashSet<int>();
-    private List<PlayerMovement> players = new List<PlayerMovement>();
 
-    // ❌ REMOVED Awake()
+    [Header("Chapter Start Points")]
+    public Transform[] chapterStartPoints;
+
+    [Header("Reset Delay")]
+    public float resetDelay = 2f;
+
+    private List<PlayerMovement> players = new List<PlayerMovement>();
 
     public override void OnNetworkSpawn()
     {
-        Debug.Log("GameManager spawned. IsServer: " + IsServer);
+        if (Instance == null) Instance = this;
+        else { Destroy(gameObject); return; }
 
-        // ✅ SAFE singleton setup (Netcode-ready)
-        if (Instance == null)
-            Instance = this;
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
-
-        // ✅ Initialize ONLY on server
         if (IsServer)
         {
             currentLives.Value = maxLives;
@@ -44,29 +39,24 @@ public class GameManager : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (Instance == this)
-            Instance = null;
+        if (Instance == this) Instance = null;
     }
 
-    // ✅ REGISTER PLAYERS PROPERLY
     public void RegisterPlayer(PlayerMovement player)
     {
-        if (!players.Contains(player))
-            players.Add(player);
+        if (!players.Contains(player)) players.Add(player);
     }
 
     public void UnregisterPlayer(PlayerMovement player)
     {
-        if (players.Contains(player))
-            players.Remove(player);
+        if (players.Contains(player)) players.Remove(player);
     }
+
+    public int PlayersCount => players.Count;
 
     public int GetCurrentCheckpointIndex() => currentCheckpointIndex.Value;
 
-    public bool HasActivatedCheckpoint(int index)
-    {
-        return activatedCheckpoints.Contains(index);
-    }
+    public bool HasActivatedCheckpoint(int index) => activatedCheckpoints.Contains(index);
 
     public void ActivateCheckpoint(int index)
     {
@@ -76,60 +66,92 @@ public class GameManager : NetworkBehaviour
             activatedCheckpoints.Add(index);
 
         if (index > currentCheckpointIndex.Value)
+        {
             currentCheckpointIndex.Value = index;
+            currentLives.Value = maxLives;
+            Debug.Log($"[GameManager] Checkpoint reached → Lives reset to {maxLives}");
+        }
     }
 
     public void PlayerBusted()
     {
-        if (NetworkUI.Instance != null && !NetworkUI.Instance.IsPlaying)
-            return; // Game hasn't started yet
-
         if (!IsServer) return;
 
         currentLives.Value--;
-        ShowBustedClientRpc();
+        Debug.Log($"[GameManager] Player busted. Lives left: {currentLives.Value}");
 
         if (currentLives.Value <= 0)
-            ResetChapter();
+        {
+            ShowBustedClientRpc();
+            StartCoroutine(ResetChapterAfterDelay());
+        }
         else
-            RespawnPlayers();
+        {
+            RespawnPlayersAtCheckpoint();
+        }
     }
 
     [ClientRpc]
     void ShowBustedClientRpc()
     {
-        if (BustedUI.Instance != null)
-            BustedUI.Instance.Show();
+        if (BustedUI.Instance != null) BustedUI.Instance.Show();
     }
 
-    void RespawnPlayers()
+    public void RespawnPlayersAtCheckpoint()
     {
-        if (checkpoints.Length == 0) return;
+        Transform spawn;
 
-        Transform spawn = checkpoints[currentCheckpointIndex.Value];
+        if (currentCheckpointIndex.Value > 0 && checkpoints.Length > currentCheckpointIndex.Value)
+        {
+            spawn = checkpoints[currentCheckpointIndex.Value];
+        }
+        else
+        {
+            int chapterIndex = GetChapterIndex();
+            spawn = chapterStartPoints.Length > chapterIndex ? chapterStartPoints[chapterIndex] : transform;
+        }
 
         foreach (var p in players)
         {
             if (p != null)
             {
-                p.transform.position = spawn.position;
-
-                Rigidbody rb = p.GetComponent<Rigidbody>();
-                if (rb != null)
-                    rb.velocity = Vector3.zero;
+                p.RespawnAtCheckpoint(spawn.position);
             }
         }
+
+        Debug.Log($"[GameManager] Players respawned at {spawn.name}");
+    }
+
+    IEnumerator ResetChapterAfterDelay()
+    {
+        yield return new WaitForSeconds(resetDelay);
+        ResetChapter();
     }
 
     void ResetChapter()
     {
+        Debug.Log("[GameManager] Resetting chapter");
+
         currentLives.Value = maxLives;
-
-        int chapterStart = (currentCheckpointIndex.Value / 2) * 2;
-        currentCheckpointIndex.Value = chapterStart;
-
         activatedCheckpoints.Clear();
+        currentCheckpointIndex.Value = 0;
 
-        RespawnPlayers();
+        RespawnPlayersAtCheckpoint();
+    }
+
+    public void EndChapter()
+    {
+        Debug.Log("[GameManager] Chapter Completed!");
+
+        currentCheckpointIndex.Value = 0;
+        currentLives.Value = maxLives;
+        activatedCheckpoints.Clear();
+    }
+
+    int GetChapterIndex()
+    {
+        if (checkpoints.Length == 0 || chapterStartPoints.Length == 0) return 0;
+        int checkpointsPerChapter = checkpoints.Length / chapterStartPoints.Length;
+        return Mathf.Clamp(currentCheckpointIndex.Value / checkpointsPerChapter, 0, chapterStartPoints.Length - 1);
     }
 }
