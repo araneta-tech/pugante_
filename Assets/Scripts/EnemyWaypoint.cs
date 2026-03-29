@@ -37,6 +37,20 @@ public class PatrolAI : MonoBehaviour
 
     private float loseTimer = 0f;
 
+    [Header("Alert UI")]
+    public GameObject alertUIPrefab;   
+    private GameObject alertUIInstance; 
+    public Vector3 alertOffset = new Vector3(0, 2f, 0);
+
+    private float alertDisplayTimer = 0f;
+    public float alertDisplayDuration = 1.5f;
+
+    [Header("Sound Settings")]
+    public AudioSource audioSource;
+    public AudioClip alertSound;
+
+    private bool hasPlayedAlertSound = false;
+
     private bool hasBusted = false;
 
     private enum AIState
@@ -73,6 +87,17 @@ public class PatrolAI : MonoBehaviour
         agent.speed = patrolSpeed;
 
         agent.SetDestination(waypoints[currentIndex].position);
+
+        if (alertUIPrefab != null)
+        {
+            alertUIInstance = Instantiate(alertUIPrefab, transform.position + alertOffset, Quaternion.identity);
+            alertUIInstance.transform.SetParent(transform);
+            alertUIInstance.transform.localPosition = alertOffset; 
+            alertUIInstance.SetActive(false);
+        }
+
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
     }
 
     void Update()
@@ -99,6 +124,15 @@ public class PatrolAI : MonoBehaviour
             case AIState.ReturnToPatrol:
                 ReturnToPatrol();
                 break;
+        }
+        if (alertUIInstance != null && alertUIInstance.activeSelf)
+        {
+            alertDisplayTimer -= Time.deltaTime;
+
+            if (alertDisplayTimer <= 0f && detectedPlayer == null)
+            {
+                alertUIInstance.SetActive(false);
+            }
         }
 
         if (animator != null && currentState != AIState.Attack)
@@ -138,6 +172,7 @@ public class PatrolAI : MonoBehaviour
             {
                 detectedPlayer = player.transform;
                 currentState = AIState.Alert;
+                hasPlayedAlertSound = false;
                 return;
             }
         }
@@ -150,6 +185,19 @@ public class PatrolAI : MonoBehaviour
         {
             currentState = AIState.ReturnToPatrol;
             return;
+        }
+
+        if (alertUIInstance != null && !alertUIInstance.activeSelf)
+        {
+            alertUIInstance.SetActive(true);
+        }
+
+        alertDisplayTimer = alertDisplayDuration;
+
+        if (!hasPlayedAlertSound && audioSource != null && alertSound != null)
+        {
+            audioSource.PlayOneShot(alertSound);
+            hasPlayedAlertSound = true;
         }
 
         agent.SetDestination(detectedPlayer.position);
@@ -167,8 +215,29 @@ public class PatrolAI : MonoBehaviour
         currentState = AIState.Chase;
     }
 
+    void LateUpdate()
+    {
+        if (alertUIInstance != null && alertUIInstance.activeSelf)
+        {
+            alertUIInstance.transform.position = transform.position + alertOffset;
+
+            if (Camera.main != null)
+            {
+                Vector3 dir = alertUIInstance.transform.position - Camera.main.transform.position;
+                alertUIInstance.transform.rotation = Quaternion.LookRotation(dir);
+            }
+        }
+    }
+
     void ChasePlayer()
     {
+        if (alertUIInstance != null && !alertUIInstance.activeSelf)
+        {
+            alertUIInstance.SetActive(true);
+        }
+
+        alertDisplayTimer = alertDisplayDuration;
+
         if (detectedPlayer == null)
         {
             currentState = AIState.ReturnToPatrol;
@@ -259,6 +328,11 @@ public class PatrolAI : MonoBehaviour
         if (!agent.pathPending && agent.remainingDistance < 1f)
         {
             currentState = AIState.Patrol;
+        }
+
+        if (alertUIInstance != null && alertUIInstance.activeSelf)
+        {
+            alertUIInstance.SetActive(false);
         }
     }
 

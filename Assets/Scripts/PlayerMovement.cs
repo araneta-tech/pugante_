@@ -19,10 +19,21 @@ public class PlayerMovement : NetworkBehaviour
     [Header("Default Character Index")]
     public int defaultCharacterIndex = 0;
 
+    [Header("Footstep Audio")]
+    public AudioSource footstepAudioSource;
+    public List<AudioClip> footstepClips;
+    public float footstepInterval = 0.5f;
+
+    private float footstepTimer = 0f;
+
     [Header("Distance Check Settings")]
     public float warningDistance = 15f;
     public float limitDistance = 20f;
     public float outOfRangeDuration = 5f;
+
+    [Header("Explosion Sound")]
+    public AudioSource explosionAudioSource;
+    public AudioClip explosionSound;
 
     [Header("Ground Check")]
     public Transform groundCheck;
@@ -158,6 +169,8 @@ public class PlayerMovement : NetworkBehaviour
 
         if (Input.GetKeyDown(KeyCode.K))
             RequestJumpServerRpc();
+
+        HandleFootsteps();
     }
 
     void FixedUpdate()
@@ -281,6 +294,36 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
+    void HandleFootsteps()
+    {
+        if (!IsOwner) return; 
+
+        bool isWalking = isWalkingNet.Value && (isGrounded || isTouchingGroundTag);
+
+        if (isWalking)
+        {
+            footstepTimer -= Time.deltaTime;
+
+            if (footstepTimer <= 0f)
+            {
+                PlayFootstep();
+                footstepTimer = footstepInterval / Mathf.Clamp(lastInput.magnitude, 0.5f, 1f);
+            }
+        }
+        else
+        {
+            footstepTimer = 0f;
+        }
+    }
+
+    void PlayFootstep()
+    {
+        if (footstepAudioSource == null || footstepClips.Count == 0) return;
+
+        int index = Random.Range(0, footstepClips.Count);
+        footstepAudioSource.PlayOneShot(footstepClips[index]);
+    }
+
     void CheckPlayersDistance()
     {
         if (players.Count < 2)
@@ -312,6 +355,11 @@ public class PlayerMovement : NetworkBehaviour
 
                 if (outOfRangeTimer >= outOfRangeDuration)
                 {
+                    if (explosionAudioSource != null && explosionSound != null)
+                    {
+                        explosionAudioSource.PlayOneShot(explosionSound);
+                    }
+
                     foreach (var p in players)
                     {
                         NetworkObject n = p.GetComponent<NetworkObject>();
@@ -321,6 +369,7 @@ public class PlayerMovement : NetworkBehaviour
                             Destroy(n.gameObject);
                         }
                     }
+
                     timerActive = false;
                     outOfRangeTimer = 0;
                 }
