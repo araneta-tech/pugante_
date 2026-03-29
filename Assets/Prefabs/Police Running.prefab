@@ -305,6 +305,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5465940246521907071, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.329
+      objectReference: {fileID: 0}
+    - target: {fileID: 5465940246521907071, guid: 382a3c802a17369488d8031d24311528,
+        type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 1.4768188
       objectReference: {fileID: 0}
@@ -429,7 +434,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 2701992540
+  GlobalObjectIdHash: 2437588848
   InScenePlacedSourceGlobalObjectIdHash: 0
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -451,6 +456,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   agent: {fileID: 5749588812625188162}
+  animator: {fileID: 0}
   waypointHolder: {fileID: 0}
   lineOfSightRadius: 10
   viewAngle: 120
