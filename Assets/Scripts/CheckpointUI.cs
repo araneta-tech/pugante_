@@ -18,7 +18,6 @@ public class CheckpointUI : MonoBehaviour
 
     private void Awake()
     {
-        // ✅ Prevent duplicates
         if (Instance == null)
             Instance = this;
         else

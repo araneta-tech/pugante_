@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -8,6 +8,8 @@ public class BustedUI : MonoBehaviour
 
     public GameObject panel;
     public float displayTime = 2f;
+
+    private Coroutine currentRoutine;
 
     private void Awake()
     {
@@ -19,13 +21,18 @@ public class BustedUI : MonoBehaviour
             return;
         }
 
-        panel.SetActive(false);
+        if (panel != null)
+            panel.SetActive(false);
     }
 
     public void Show()
     {
-        StopAllCoroutines();
-        StartCoroutine(ShowRoutine());
+        if (panel == null) return;
+
+        if (currentRoutine != null)
+            StopCoroutine(currentRoutine);
+
+        currentRoutine = StartCoroutine(ShowRoutine());
     }
 
     IEnumerator ShowRoutine()
@@ -35,5 +42,7 @@ public class BustedUI : MonoBehaviour
         yield return new WaitForSeconds(displayTime);
 
         panel.SetActive(false);
+
+        currentRoutine = null;
     }
 }
