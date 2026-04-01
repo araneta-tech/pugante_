@@ -44,6 +44,11 @@ public class CollectibleItem : NetworkBehaviour
         {
             UpdateFloatingUIText();
         }
+
+        if (isPlayerNearby && IsOwner && Input.GetKeyDown(KeyCode.F))
+        {
+            CollectServerRpc();
+        }
     }
 
     bool CheckPlayerProximity()

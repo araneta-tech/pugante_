@@ -23,28 +23,46 @@ public class MovableObject : NetworkBehaviour
     {
         rb = GetComponent<Rigidbody>();
         objectCollider = GetComponent<Collider>();
-        rb.isKinematic = true; 
+
+        rb.isKinematic = true;
     }
 
     private void Update()
     {
         ShowFloatingF();
-        if (IsOwner) CheckInput();
-        if (IsServer && isHeld.Value) FollowPlayer();
+
+        if (IsOwner)
+            CheckInput();
+    }
+
+    private void FixedUpdate()
+    {
+        // Physics + movement must run here
+        if (IsServer && isHeld.Value)
+        {
+            FollowPlayer();
+        }
+    }
+
+    private bool CanInteract(PlayerMovement player)
+    {
+        // Only allow interaction if player is char index 1 and is owner
+        return player != null && player.SelectedCharacterIndex == 1 && player.IsOwner;
     }
 
     private void CheckInput()
     {
         PlayerMovement player = GetLocalPlayer();
-        if (player == null) return;
-
-        if (player.SelectedCharacterIndex != 1) return;
+        if (!CanInteract(player)) return;
 
         float dist = Vector3.Distance(transform.position, player.transform.position);
+
         if (dist <= interactionRange && Input.GetKeyDown(KeyCode.F))
         {
-            if (isHeld.Value) ReleaseObjectServerRpc(player.OwnerClientId);
-            else ToggleHoldServerRpc(player.OwnerClientId);
+            if (isHeld.Value)
+                ReleaseObjectServerRpc(player.OwnerClientId);
+            else
+                ToggleHoldServerRpc(player.OwnerClientId);
         }
     }
 
@@ -72,15 +90,16 @@ public class MovableObject : NetworkBehaviour
             isHeld.Value = true;
             holderId.Value = playerId;
 
-            rb.isKinematic = false; 
+            rb.isKinematic = true;
+
             if (playerCollider != null && objectCollider != null)
-                Physics.IgnoreCollision(playerCollider, objectCollider, true); 
+                Physics.IgnoreCollision(playerCollider, objectCollider, true);
 
             player.SetSpeedMultiplier(0.5f);
         }
         else
         {
-            ReleaseObjectServerRpc(playerId); 
+            ReleaseObjectServerRpc(playerId);
         }
     }
 
@@ -90,21 +109,23 @@ public class MovableObject : NetworkBehaviour
         isHeld.Value = false;
         holderId.Value = 0;
 
-        rb.isKinematic = true; 
+        rb.isKinematic = true;
+
         if (playerCollider != null && objectCollider != null)
-            Physics.IgnoreCollision(playerCollider, objectCollider, false); 
+            Physics.IgnoreCollision(playerCollider, objectCollider, false);
 
         var playerObj = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject;
         if (playerObj != null)
         {
             PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
-            player.RestoreSpeed(); 
+            player.RestoreSpeed();
         }
     }
 
     private void FollowPlayer()
     {
-        if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(holderId.Value)) return;
+        if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(holderId.Value))
+            return;
 
         var playerObj = NetworkManager.Singleton.ConnectedClients[holderId.Value].PlayerObject;
         if (playerObj == null) return;
@@ -112,14 +133,24 @@ public class MovableObject : NetworkBehaviour
         PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
         if (player == null) return;
 
-        Vector3 targetPosition = player.transform.position + player.transform.forward * holdDistance + Vector3.up * holdHeight;
-        transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
+        Vector3 targetPosition =
+            player.transform.position +
+            player.transform.forward * holdDistance +
+            Vector3.up * holdHeight;
+
+        // FIXED UPDATE SAFE MOVEMENT
+        transform.position = Vector3.Lerp(
+            transform.position,
+            targetPosition,
+            followSpeed * Time.fixedDeltaTime
+        );
     }
 
     private void ShowFloatingF()
     {
         PlayerMovement player = GetLocalPlayer();
-        if (player == null || player.SelectedCharacterIndex != 1)
+
+        if (!CanInteract(player))
         {
             DestroyFloatingF();
             return;
@@ -132,6 +163,7 @@ public class MovableObject : NetworkBehaviour
             if (floatingF == null)
             {
                 floatingF = new GameObject("PressF");
+
                 TextMesh text = floatingF.AddComponent<TextMesh>();
                 text.fontSize = 50;
                 text.characterSize = 0.2f;
@@ -140,7 +172,9 @@ public class MovableObject : NetworkBehaviour
                 floatingF.AddComponent<FaceCamera>();
             }
 
-            floatingF.GetComponent<TextMesh>().text = isHeld.Value ? "[F] Release" : "[F] Grab";
+            floatingF.GetComponent<TextMesh>().text =
+                isHeld.Value ? "[F] Release" : "[F] Grab";
+
             floatingF.transform.position = transform.position + Vector3.up * 2f;
             floatingF.SetActive(true);
         }
@@ -153,9 +187,7 @@ public class MovableObject : NetworkBehaviour
     private void DestroyFloatingF()
     {
         if (floatingF != null)
-        {
             floatingF.SetActive(false);
-        }
     }
 }
 

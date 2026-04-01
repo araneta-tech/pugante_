@@ -25,7 +25,8 @@ public class NetworkUI : MonoBehaviour
 
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
-    public bool IsPlaying => isPlaying; // ✅ Public getter for other scripts
+
+    public bool IsPlaying => isPlaying;
 
     private void Awake()
     {
@@ -43,6 +44,14 @@ public class NetworkUI : MonoBehaviour
 
         hostButton.gameObject.SetActive(true);
         clientButton.gameObject.SetActive(true);
+
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            NetworkManager.Singleton.OnServerStopped += OnServerStopped;
+        }
+
+        UpdateCursorState();
     }
 
     private void Update()
@@ -52,6 +61,37 @@ public class NetworkUI : MonoBehaviour
 
         hostButton.interactable = !hasSelectedCharacter;
         clientButton.interactable = !hasSelectedCharacter;
+
+        HandleCursorInput();
+    }
+
+    private void HandleCursorInput()
+    {
+        bool isAltHeld = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+
+        if (isAltHeld)
+        {
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+        }
+        else
+        {
+            UpdateCursorState();
+        }
+    }
+
+    private void UpdateCursorState()
+    {
+        if (isPlaying)
+        {
+            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Locked;
+        }
+        else
+        {
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+        }
     }
 
     private void OnHostButtonClicked()
@@ -84,6 +124,7 @@ public class NetworkUI : MonoBehaviour
 
         hasSelectedCharacter = false;
         isPlaying = false;
+        UpdateCursorState();
     }
 
     public void OnCharacterSelected(int characterIndex)
@@ -101,6 +142,7 @@ public class NetworkUI : MonoBehaviour
         StartCoroutine(SetCharacterIndexWhenReady(characterIndex));
 
         isPlaying = true;
+        UpdateCursorState();
     }
 
     private IEnumerator SetCharacterIndexWhenReady(int characterIndex)
@@ -121,8 +163,14 @@ public class NetworkUI : MonoBehaviour
     {
         if (NetworkManager.Singleton != null)
             NetworkManager.Singleton.Shutdown();
+    }
 
-        ReturnToHostClientSelection();
+    private void OnClientDisconnected(ulong clientId)
+    {
+        if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
+        {
+            ReturnToHostClientSelection();
+        }
     }
 
     private void ReturnToHostClientSelection()
@@ -139,5 +187,21 @@ public class NetworkUI : MonoBehaviour
         pendingMode = NetworkMode.None;
         hasSelectedCharacter = false;
         isPlaying = false;
+
+        UpdateCursorState();
+    }
+
+    private void OnDestroy()
+    {
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+            NetworkManager.Singleton.OnServerStopped -= OnServerStopped;
+        }
+    }
+
+    private void OnServerStopped(bool _)
+    {
+        ReturnToHostClientSelection();
     }
 }
