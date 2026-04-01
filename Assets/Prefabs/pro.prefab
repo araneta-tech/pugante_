@@ -530,22 +530,18 @@ MonoBehaviour:
     speed: 10
     jumpForce: 5
   defaultCharacterIndex: 0
-  footstepAudioSource: {fileID: 0}
-  footstepClips:
-  - {fileID: 8300000, guid: 039e73af825e8d041b60b354d76beb1e, type: 3}
-  - {fileID: 8300000, guid: 28fe47be573d9824ba5d134cc9b43e59, type: 3}
-  footstepInterval: 0.5
   warningDistance: 15
   limitDistance: 20
   outOfRangeDuration: 5
-  explosionAudioSource: {fileID: 0}
-  explosionSound: {fileID: 8300000, guid: 736cbfba56d98f043b450b2530634e72, type: 3}
   groundCheck: {fileID: 8103544638888057991}
   groundRadius: 0.4
   groundLayer:
     serializedVersion: 2
     m_Bits: 8
   collectRange: 2
+  mouseSensitivity: 2
+  cameraDistance: 4
+  cameraHeight: 2
 --- !u!136 &88952966652195418
 CapsuleCollider:
   m_ObjectHideFlags: 0

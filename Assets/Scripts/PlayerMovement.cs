@@ -19,21 +19,14 @@ public class PlayerMovement : NetworkBehaviour
     [Header("Default Character Index")]
     public int defaultCharacterIndex = 0;
 
-    [Header("Footstep Audio")]
-    public AudioSource footstepAudioSource;
-    public List<AudioClip> footstepClips;
-    public float footstepInterval = 0.5f;
-
-    private float footstepTimer = 0f;
-
     [Header("Distance Check Settings")]
     public float warningDistance = 15f;
     public float limitDistance = 20f;
     public float outOfRangeDuration = 5f;
 
-    [Header("Explosion Sound")]
-    public AudioSource explosionAudioSource;
-    public AudioClip explosionSound;
+    [Header("Fail / Return Settings")]
+    public float failUiHoldSeconds = 5f;
+    public string menuSceneName = "HostClientMenu";
 
     [Header("Ground Check")]
     public Transform groundCheck;
@@ -43,10 +36,19 @@ public class PlayerMovement : NetworkBehaviour
     [Header("Item Collection")]
     public float collectRange = 2f;
 
+    [Header("3rd Person Camera Settings")]
+    public float mouseSensitivity = 2f;
+    public float cameraDistance = 4f;
+    public float cameraHeight = 2f;
+
+    private float yaw;
+    private float pitch = 15f;
+
     private static float outOfRangeTimer = 0f;
     private static bool timerActive = false;
+    private static bool failSequenceTriggered = false;
 
-    private static List<PlayerMovement> players = new List<PlayerMovement>();
+    private static readonly List<PlayerMovement> players = new List<PlayerMovement>();
 
     private GameObject spawnedModel;
     private Animator animator;
@@ -71,8 +73,12 @@ public class PlayerMovement : NetworkBehaviour
     private CollectibleItem currentItem;
     private bool interactingWithObject = false;
 
+    private CinemachineVirtualCamera virtualCam;
+
     public Vector3 LastInput => lastInput;
     public int SelectedCharacterIndex => selectedCharacterIndex.Value;
+
+    public static event System.Action<PlayerMovement> OnPlayerDespawned;
 
     public void SetInteractingWithObject(bool state) => interactingWithObject = state;
 
@@ -104,7 +110,8 @@ public class PlayerMovement : NetworkBehaviour
         if (IsOwner)
             AssignCamera();
 
-        players.Add(this);
+        if (!players.Contains(this))
+            players.Add(this);
 
         if (IsServer && GameManager.Instance != null)
         {
@@ -119,6 +126,11 @@ public class PlayerMovement : NetworkBehaviour
         if (IsServer && GameManager.Instance != null)
         {
             GameManager.Instance.UnregisterPlayer(this);
+        }
+
+        if (IsServer && OnPlayerDespawned != null)
+        {
+            OnPlayerDespawned(this);
         }
     }
 
@@ -155,22 +167,46 @@ public class PlayerMovement : NetworkBehaviour
 
     void AssignCamera()
     {
-        var cam = FindObjectOfType<CinemachineVirtualCamera>();
-        if (cam != null)
+        virtualCam = FindObjectOfType<CinemachineVirtualCamera>();
+        if (virtualCam != null)
         {
-            cam.Follow = transform;
-            cam.LookAt = transform;
+            virtualCam.Follow = transform;
+            virtualCam.LookAt = transform;
         }
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void Update()
     {
         if (!IsOwner || !IsSpawned) return;
 
+        HandleCameraRotation();
+
         if (Input.GetKeyDown(KeyCode.K))
             RequestJumpServerRpc();
+    }
 
-        HandleFootsteps();
+    void HandleCameraRotation()
+    {
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * 100f * Time.deltaTime;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * 100f * Time.deltaTime;
+
+        yaw += mouseX;
+        pitch -= mouseY;
+        pitch = Mathf.Clamp(pitch, -30f, 60f);
+
+        if (virtualCam != null)
+        {
+            Transform camTransform = virtualCam.transform;
+
+            Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
+            Vector3 offset = rotation * new Vector3(0, 0, -cameraDistance);
+
+            camTransform.position = transform.position + Vector3.up * cameraHeight + offset;
+            camTransform.LookAt(transform.position + Vector3.up * cameraHeight);
+        }
     }
 
     void FixedUpdate()
@@ -212,7 +248,11 @@ public class PlayerMovement : NetworkBehaviour
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
 
-        Vector3 input = new Vector3(x, 0f, z);
+        Vector3 camForward = Vector3.ProjectOnPlane(Camera.main.transform.forward, Vector3.up).normalized;
+        Vector3 camRight = Camera.main.transform.right;
+
+        Vector3 input = camForward * z + camRight * x;
+
         SendInputServerRpc(input);
 
         DetectItem();
@@ -294,60 +334,33 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    void HandleFootsteps()
-    {
-        if (!IsOwner) return; 
-
-        bool isWalking = isWalkingNet.Value && (isGrounded || isTouchingGroundTag);
-
-        if (isWalking)
-        {
-            footstepTimer -= Time.deltaTime;
-
-            if (footstepTimer <= 0f)
-            {
-                PlayFootstep();
-                footstepTimer = footstepInterval / Mathf.Clamp(lastInput.magnitude, 0.5f, 1f);
-            }
-        }
-        else
-        {
-            footstepTimer = 0f;
-        }
-    }
-
-    void PlayFootstep()
-    {
-        if (footstepAudioSource == null || footstepClips.Count == 0) return;
-
-        int index = Random.Range(0, footstepClips.Count);
-        footstepAudioSource.PlayOneShot(footstepClips[index]);
-    }
-
     void CheckPlayersDistance()
     {
-        if (players.Count < 2)
+        if (!IsServer || failSequenceTriggered)
+            return;
+
+        List<PlayerMovement> serverPlayers = GetServerPlayers();
+
+        if (serverPlayers.Count < 2)
         {
-            outOfRangeTimer = 0;
-            timerActive = false;
+            ResetDistanceTimer();
             return;
         }
 
-        float distance = Vector3.Distance(players[0].transform.position, players[1].transform.position);
+        float maxPlayerDistance = GetMaxPlayerDistance(serverPlayers);
 
-        if (distance > warningDistance && distance <= limitDistance)
+        if (maxPlayerDistance <= warningDistance)
         {
-            outOfRangeTimer = 0;
-            timerActive = false;
+            ResetDistanceTimer();
             return;
         }
 
-        if (distance > limitDistance)
+        if (maxPlayerDistance > limitDistance)
         {
             if (!timerActive)
             {
                 timerActive = true;
-                outOfRangeTimer = 0;
+                outOfRangeTimer = 0f;
             }
             else
             {
@@ -355,30 +368,94 @@ public class PlayerMovement : NetworkBehaviour
 
                 if (outOfRangeTimer >= outOfRangeDuration)
                 {
-                    if (explosionAudioSource != null && explosionSound != null)
-                    {
-                        explosionAudioSource.PlayOneShot(explosionSound);
-                    }
-
-                    foreach (var p in players)
-                    {
-                        NetworkObject n = p.GetComponent<NetworkObject>();
-                        if (n && n.IsSpawned)
-                        {
-                            n.Despawn(false);
-                            Destroy(n.gameObject);
-                        }
-                    }
-
-                    timerActive = false;
-                    outOfRangeTimer = 0;
+                    BeginFailSequence();
                 }
             }
-            return;
+        }
+        else
+        {
+            ResetDistanceTimer();
+        }
+    }
+
+    List<PlayerMovement> GetServerPlayers()
+    {
+        List<PlayerMovement> result = new List<PlayerMovement>();
+
+        if (NetworkManager.Singleton == null)
+            return result;
+
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            if (client.PlayerObject != null &&
+                client.PlayerObject.TryGetComponent(out PlayerMovement pm))
+            {
+                result.Add(pm);
+            }
         }
 
+        return result;
+    }
+
+    float GetMaxPlayerDistance(List<PlayerMovement> serverPlayers)
+    {
+        float maxDistance = 0f;
+
+        for (int i = 0; i < serverPlayers.Count; i++)
+        {
+            for (int j = i + 1; j < serverPlayers.Count; j++)
+            {
+                float d = Vector3.Distance(
+                    serverPlayers[i].transform.position,
+                    serverPlayers[j].transform.position
+                );
+
+                if (d > maxDistance)
+                    maxDistance = d;
+            }
+        }
+
+        return maxDistance;
+    }
+
+    void ResetDistanceTimer()
+    {
+        outOfRangeTimer = 0f;
         timerActive = false;
-        outOfRangeTimer = 0;
+    }
+
+    void BeginFailSequence()
+    {
+        if (failSequenceTriggered)
+            return;
+
+        failSequenceTriggered = true;
+        ResetDistanceTimer();
+
+        DespawnAllPlayerObjects();
+
+        if (NetworkUI.Instance != null)
+        {
+            NetworkUI.Instance.StartFailUISequence(5f);
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerMovement] NetworkUI.Instance is missing.");
+        }
+    }
+
+    void DespawnAllPlayerObjects()
+    {
+        if (!IsServer || NetworkManager.Singleton == null)
+            return;
+
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            if (client.PlayerObject != null && client.PlayerObject.IsSpawned)
+            {
+                client.PlayerObject.Despawn(true);
+            }
+        }
     }
 
     void ApplyAnimationState(bool walking)
@@ -421,7 +498,7 @@ public class PlayerMovement : NetworkBehaviour
         {
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
-            rb.Sleep(); 
+            rb.Sleep();
         }
 
         transform.position = position;
@@ -434,5 +511,13 @@ public class PlayerMovement : NetworkBehaviour
         animator?.SetBool("isWalking", false);
 
         Debug.Log($"[PlayerMovement] Respawned at {position}");
+    }
+
+    public override void OnDestroy()
+    {
+        if (players.Contains(this))
+            players.Remove(this);
+
+        base.OnDestroy();
     }
 }

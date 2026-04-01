@@ -4,51 +4,108 @@ using Unity.Netcode;
 public class MovableObject : NetworkBehaviour
 {
     [Header("Interaction Settings")]
-    public float interactionRange = 3f;
+    public float detectRange = 3f;
     public float holdDistance = 2.5f;
     public float holdHeight = 1.0f;
 
     [Header("Follow Settings")]
-    public float followSpeed = 5f;
+    public float followSpeed = 10f;
+
+    [Header("Floating UI")]
+    public bool showFloatingF = true;
+    [SerializeField] private GameObject floatingUIText;
 
     private NetworkVariable<bool> isHeld = new NetworkVariable<bool>(false);
-    private NetworkVariable<ulong> holderId = new NetworkVariable<ulong>(0);
+    private NetworkVariable<ulong> holderId = new NetworkVariable<ulong>(ulong.MaxValue);
 
-    private GameObject floatingF;
     private Rigidbody rb;
     private Collider objectCollider;
     private Collider playerCollider;
 
-    private void Awake()
+    private bool isPlayerNearby = false;
+
+    void Awake()
     {
         rb = GetComponent<Rigidbody>();
         objectCollider = GetComponent<Collider>();
-        rb.isKinematic = true; 
+
+        rb.isKinematic = true;
+        rb.useGravity = false;
     }
 
-    private void Update()
+    void Update()
     {
-        ShowFloatingF();
-        if (IsOwner) CheckInput();
-        if (IsServer && isHeld.Value) FollowPlayer();
-    }
+        if (!IsSpawned) return;
 
-    private void CheckInput()
-    {
-        PlayerMovement player = GetLocalPlayer();
-        if (player == null) return;
+        isPlayerNearby = CheckPlayerProximity();
 
-        if (player.SelectedCharacterIndex != 1) return;
+        if (showFloatingF)
+            UpdateFloatingUIText();
 
-        float dist = Vector3.Distance(transform.position, player.transform.position);
-        if (dist <= interactionRange && Input.GetKeyDown(KeyCode.F))
+        HandleInput();
+
+        if (IsServer && isHeld.Value)
         {
-            if (isHeld.Value) ReleaseObjectServerRpc(player.OwnerClientId);
-            else ToggleHoldServerRpc(player.OwnerClientId);
+            FollowPlayerServer();
         }
     }
 
-    private PlayerMovement GetLocalPlayer()
+    // -------------------------
+    // 🔥 NEW: INTERACTION RESTRICTION
+    // -------------------------
+    bool CanInteract(PlayerMovement player)
+    {
+        if (player == null) return false;
+
+        // ❌ Restrict character index 0
+        if (player.SelectedCharacterIndex == 0)
+            return false;
+
+        return true;
+    }
+
+    // -------------------------
+    // PROXIMITY CHECK
+    // -------------------------
+    bool CheckPlayerProximity()
+    {
+        Collider[] hits = Physics.OverlapSphere(transform.position, detectRange);
+
+        foreach (var hit in hits)
+        {
+            PlayerMovement player = hit.GetComponent<PlayerMovement>();
+
+            if (player != null && player.IsOwner)
+                return true;
+        }
+
+        return false;
+    }
+
+    void HandleInput()
+    {
+        if (!isPlayerNearby) return;
+
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            PlayerMovement player = GetLocalPlayer();
+            if (player == null) return;
+
+            // 🔥 APPLY RESTRICTION HERE
+            if (!CanInteract(player))
+            {
+                Debug.Log("[Movable] Interaction blocked: Character 0 cannot use this.");
+                return;
+            }
+
+            if (isHeld.Value)
+                ReleaseServerRpc(player.OwnerClientId);
+            else
+                GrabServerRpc(player.OwnerClientId);
+        }
+    }
+
+    PlayerMovement GetLocalPlayer()
     {
         foreach (var p in FindObjectsOfType<PlayerMovement>())
         {
@@ -58,112 +115,111 @@ public class MovableObject : NetworkBehaviour
         return null;
     }
 
+    // -------------------------
+    // SERVER LOGIC
+    // -------------------------
     [ServerRpc(RequireOwnership = false)]
-    private void ToggleHoldServerRpc(ulong playerId)
+    void GrabServerRpc(ulong playerId)
     {
+        if (isHeld.Value) return;
+        if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(playerId)) return;
+
         var playerObj = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject;
         if (playerObj == null) return;
 
         PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
+        
+        // 🔥 SERVER-SIDE VALIDATION (IMPORTANT)
+        if (!CanInteract(player)) return;
+
         playerCollider = playerObj.GetComponent<Collider>();
 
-        if (!isHeld.Value)
-        {
-            isHeld.Value = true;
-            holderId.Value = playerId;
+        isHeld.Value = true;
+        holderId.Value = playerId;
 
-            rb.isKinematic = false; 
-            if (playerCollider != null && objectCollider != null)
-                Physics.IgnoreCollision(playerCollider, objectCollider, true); 
+        rb.isKinematic = true;
 
-            player.SetSpeedMultiplier(0.5f);
-        }
-        else
-        {
-            ReleaseObjectServerRpc(playerId); 
-        }
+        if (playerCollider != null && objectCollider != null)
+            Physics.IgnoreCollision(playerCollider, objectCollider, true);
+
+        player.SetSpeedMultiplier(0.5f);
+
+        Debug.Log($"[Movable] Grabbed by {playerId}");
     }
 
     [ServerRpc(RequireOwnership = false)]
-    private void ReleaseObjectServerRpc(ulong playerId)
+    void ReleaseServerRpc(ulong playerId)
     {
-        isHeld.Value = false;
-        holderId.Value = 0;
+        if (!isHeld.Value) return;
+        if (holderId.Value != playerId) return;
 
-        rb.isKinematic = true; 
-        if (playerCollider != null && objectCollider != null)
-            Physics.IgnoreCollision(playerCollider, objectCollider, false); 
+        if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(playerId)) return;
 
         var playerObj = NetworkManager.Singleton.ConnectedClients[playerId].PlayerObject;
-        if (playerObj != null)
-        {
-            PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
-            player.RestoreSpeed(); 
-        }
+        if (playerObj == null) return;
+
+        PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
+
+        isHeld.Value = false;
+        holderId.Value = ulong.MaxValue;
+
+        if (playerCollider != null && objectCollider != null)
+            Physics.IgnoreCollision(playerCollider, objectCollider, false);
+
+        playerCollider = null;
+
+        player.RestoreSpeed();
+
+        rb.isKinematic = true;
+
+        Debug.Log($"[Movable] Released by {playerId}");
     }
 
-    private void FollowPlayer()
+    // -------------------------
+    // SERVER MOVEMENT
+    // -------------------------
+    void FollowPlayerServer()
     {
         if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(holderId.Value)) return;
 
         var playerObj = NetworkManager.Singleton.ConnectedClients[holderId.Value].PlayerObject;
         if (playerObj == null) return;
 
-        PlayerMovement player = playerObj.GetComponent<PlayerMovement>();
-        if (player == null) return;
+        Vector3 targetPosition =
+            playerObj.transform.position +
+            playerObj.transform.forward * holdDistance +
+            Vector3.up * holdHeight;
 
-        Vector3 targetPosition = player.transform.position + player.transform.forward * holdDistance + Vector3.up * holdHeight;
-        transform.position = Vector3.Lerp(transform.position, targetPosition, followSpeed * Time.deltaTime);
+        transform.position = Vector3.Lerp(
+            transform.position,
+            targetPosition,
+            followSpeed * Time.deltaTime
+        );
     }
 
-    private void ShowFloatingF()
+    // -------------------------
+    // UI
+    // -------------------------
+    void UpdateFloatingUIText()
     {
+        if (floatingUIText == null) return;
+
         PlayerMovement player = GetLocalPlayer();
-        if (player == null || player.SelectedCharacterIndex != 1)
+
+        // 🔥 Hide UI if restricted
+        if (player != null && !CanInteract(player))
         {
-            DestroyFloatingF();
+            floatingUIText.SetActive(false);
             return;
         }
 
-        float dist = Vector3.Distance(transform.position, player.transform.position);
-
-        if (dist <= interactionRange)
+        if (isPlayerNearby)
         {
-            if (floatingF == null)
-            {
-                floatingF = new GameObject("PressF");
-                TextMesh text = floatingF.AddComponent<TextMesh>();
-                text.fontSize = 50;
-                text.characterSize = 0.2f;
-                text.anchor = TextAnchor.MiddleCenter;
-
-                floatingF.AddComponent<FaceCamera>();
-            }
-
-            floatingF.GetComponent<TextMesh>().text = isHeld.Value ? "[F] Release" : "[F] Grab";
-            floatingF.transform.position = transform.position + Vector3.up * 2f;
-            floatingF.SetActive(true);
+            floatingUIText.SetActive(true);
         }
         else
         {
-            DestroyFloatingF();
+            floatingUIText.SetActive(false);
         }
-    }
-
-    private void DestroyFloatingF()
-    {
-        if (floatingF != null)
-        {
-            floatingF.SetActive(false);
-        }
-    }
-}
-
-public class FaceCamera : MonoBehaviour
-{
-    private void LateUpdate()
-    {
-        if (Camera.main != null)
-            transform.forward = Camera.main.transform.forward;
     }
 }

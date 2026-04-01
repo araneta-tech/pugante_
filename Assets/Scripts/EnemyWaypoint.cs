@@ -37,20 +37,22 @@ public class PatrolAI : MonoBehaviour
 
     private float loseTimer = 0f;
 
-    [Header("Alert UI")]
-    public GameObject alertUIPrefab;   
-    private GameObject alertUIInstance; 
+    [Header("Alert UI (World)")]
+    public GameObject alertUIPrefab;
+    private GameObject alertUIInstance;
     public Vector3 alertOffset = new Vector3(0, 2f, 0);
 
     private float alertDisplayTimer = 0f;
     public float alertDisplayDuration = 1.5f;
+
+    [Header("PLAYER UI (SCREEN) 🔥")]
+    public GameObject playerDetectionUI; // Assign Canvas UI here
 
     [Header("Sound Settings")]
     public AudioSource audioSource;
     public AudioClip alertSound;
 
     private bool hasPlayedAlertSound = false;
-
     private bool hasBusted = false;
 
     private enum AIState
@@ -72,32 +74,28 @@ public class PatrolAI : MonoBehaviour
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
 
-        if (waypointHolder == null)
-        {
-            return;
-        }
+        if (waypointHolder == null) return;
 
         waypoints = waypointHolder.GetWaypoints();
-
-        if (waypoints.Length == 0)
-        {
-            return;
-        }
+        if (waypoints.Length == 0) return;
 
         agent.speed = patrolSpeed;
-
         agent.SetDestination(waypoints[currentIndex].position);
 
         if (alertUIPrefab != null)
         {
             alertUIInstance = Instantiate(alertUIPrefab, transform.position + alertOffset, Quaternion.identity);
             alertUIInstance.transform.SetParent(transform);
-            alertUIInstance.transform.localPosition = alertOffset; 
+            alertUIInstance.transform.localPosition = alertOffset;
             alertUIInstance.SetActive(false);
         }
 
         if (audioSource == null)
             audioSource = GetComponent<AudioSource>();
+
+        // Ensure player UI starts hidden
+        if (playerDetectionUI != null)
+            playerDetectionUI.SetActive(false);
     }
 
     void Update()
@@ -125,6 +123,9 @@ public class PatrolAI : MonoBehaviour
                 ReturnToPatrol();
                 break;
         }
+
+        HandlePlayerDetectionUI(); // 🔥 NEW FUNCTION
+
         if (alertUIInstance != null && alertUIInstance.activeSelf)
         {
             alertDisplayTimer -= Time.deltaTime;
@@ -139,12 +140,51 @@ public class PatrolAI : MonoBehaviour
             animator.SetBool("isAttacking", false);
     }
 
+    // -------------------------
+    // 🔥 PLAYER UI CONTROL
+    // -------------------------
+    void HandlePlayerDetectionUI()
+    {
+        if (playerDetectionUI == null) return;
+
+        // Show UI if THIS client is detected
+        if (detectedPlayer != null)
+        {
+            PlayerMovement localPlayer = GetLocalPlayer();
+
+            if (localPlayer != null && detectedPlayer == localPlayer.transform)
+            {
+                if (!playerDetectionUI.activeSelf)
+                    playerDetectionUI.SetActive(true);
+
+                return;
+            }
+        }
+
+        // Hide if not detected
+        if (playerDetectionUI.activeSelf)
+            playerDetectionUI.SetActive(false);
+    }
+
+    PlayerMovement GetLocalPlayer()
+    {
+        foreach (var p in FindObjectsOfType<PlayerMovement>())
+        {
+            if (p.IsOwner && p.OwnerClientId == NetworkManager.Singleton.LocalClientId)
+                return p;
+        }
+        return null;
+    }
+
+    // -------------------------
+    // EXISTING FUNCTIONS (UNCHANGED LOGIC)
+    // -------------------------
+
     void Patrol()
     {
         if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
             currentIndex = (currentIndex + 1) % waypoints.Length;
-
             agent.SetDestination(waypoints[currentIndex].position);
         }
     }
@@ -180,7 +220,6 @@ public class PatrolAI : MonoBehaviour
 
     void AlertState()
     {
-
         if (detectedPlayer == null)
         {
             currentState = AIState.ReturnToPatrol;
@@ -188,9 +227,7 @@ public class PatrolAI : MonoBehaviour
         }
 
         if (alertUIInstance != null && !alertUIInstance.activeSelf)
-        {
             alertUIInstance.SetActive(true);
-        }
 
         alertDisplayTimer = alertDisplayDuration;
 
@@ -232,9 +269,7 @@ public class PatrolAI : MonoBehaviour
     void ChasePlayer()
     {
         if (alertUIInstance != null && !alertUIInstance.activeSelf)
-        {
             alertUIInstance.SetActive(true);
-        }
 
         alertDisplayTimer = alertDisplayDuration;
 
@@ -261,7 +296,6 @@ public class PatrolAI : MonoBehaviour
 
             if (loseTimer >= loseTime)
             {
-
                 detectedPlayer = null;
                 loseTimer = 0;
                 currentState = AIState.ReturnToPatrol;
@@ -289,9 +323,7 @@ public class PatrolAI : MonoBehaviour
             animator.SetBool("isAttacking", true);
 
         if (!hasBusted && attackTimer == 0f)
-        {
             attackTimer = attackDelay;
-        }
 
         if (!hasBusted)
         {
@@ -326,29 +358,9 @@ public class PatrolAI : MonoBehaviour
         agent.SetDestination(waypoints[currentIndex].position);
 
         if (!agent.pathPending && agent.remainingDistance < 1f)
-        {
             currentState = AIState.Patrol;
-        }
 
         if (alertUIInstance != null && alertUIInstance.activeSelf)
-        {
             alertUIInstance.SetActive(false);
-        }
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, lineOfSightRadius);
-
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawWireSphere(transform.position, attackRadius);
-
-        Vector3 left = Quaternion.Euler(0, -viewAngle / 2, 0) * transform.forward;
-        Vector3 right = Quaternion.Euler(0, viewAngle / 2, 0) * transform.forward;
-
-        Gizmos.color = Color.blue;
-        Gizmos.DrawRay(transform.position, left * lineOfSightRadius);
-        Gizmos.DrawRay(transform.position, right * lineOfSightRadius);
     }
 }
