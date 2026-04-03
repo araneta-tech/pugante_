@@ -166,7 +166,12 @@ public class NetworkUI : MonoBehaviour
         var playerMovement = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<PlayerMovement>();
 
         if (playerMovement != null)
+        {
             playerMovement.SelectCharacter(characterIndex);
+
+            if (GameManager.Instance != null)
+                playerMovement.SpawnAtPosition(GameManager.Instance.GetChapterStartPosition());
+        }
     }
 
     private void StopHostButtonOnClick()

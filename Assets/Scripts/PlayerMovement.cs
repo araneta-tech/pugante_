@@ -117,6 +117,68 @@ public class PlayerMovement : NetworkBehaviour
         {
             GameManager.Instance.RegisterPlayer(this);
         }
+
+        if (IsServer)
+        {
+            if (GameManager.Instance != null)
+            {
+                Vector3 spawnPos = GameManager.Instance.GetChapterStartPosition();
+
+                transform.position = spawnPos;
+
+                if (rb != null)
+                {
+                    rb.velocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                    rb.Sleep();
+                }
+
+                SetSpawnPositionClientRpc(spawnPos);
+            }
+        }
+    }
+
+    [ClientRpc]
+    void SetSpawnPositionClientRpc(Vector3 position)
+    {
+        transform.position = position;
+
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
+        }
+    }
+
+    public void SpawnAtPosition(Vector3 position)
+    {
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.Sleep();
+        }
+
+        transform.position = position;
+
+        SpawnAtPositionClientRpc(position);
+    }
+
+    [ClientRpc]
+    private void SpawnAtPositionClientRpc(Vector3 position)
+    {
+        if (!IsOwner)
+        {
+            if (rb != null)
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.Sleep();
+            }
+
+            transform.position = position;
+        }
     }
 
     public override void OnNetworkDespawn()
@@ -190,8 +252,8 @@ public class PlayerMovement : NetworkBehaviour
 
     void HandleCameraRotation()
     {
-        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity * 100f * Time.deltaTime;
-        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity * 100f * Time.deltaTime;
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+        float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
         yaw += mouseX;
         pitch -= mouseY;
@@ -199,13 +261,20 @@ public class PlayerMovement : NetworkBehaviour
 
         if (virtualCam != null)
         {
-            Transform camTransform = virtualCam.transform;
+            virtualCam.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+        }
+    }
 
-            Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-            Vector3 offset = rotation * new Vector3(0, 0, -cameraDistance);
-
-            camTransform.position = transform.position + Vector3.up * cameraHeight + offset;
-            camTransform.LookAt(transform.position + Vector3.up * cameraHeight);
+    void HandleCameraZoom()
+    {
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        if (scroll != 0f && virtualCam != null)
+        {
+            var transposer = virtualCam.GetCinemachineComponent<Cinemachine.CinemachineFramingTransposer>();
+            if (transposer != null)
+            {
+                transposer.m_CameraDistance = Mathf.Clamp(transposer.m_CameraDistance - scroll, 2f, 6f);
+            }
         }
     }
 

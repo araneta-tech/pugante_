@@ -20,6 +20,8 @@ public class GameManager : NetworkBehaviour
     [Header("Chapter Start Points")]
     public Transform[] chapterStartPoints;
 
+    private int nextChapterStartIndex = 0;
+
     [Header("Reset Delay")]
     public float resetDelay = 2f;
 
@@ -137,6 +139,7 @@ public class GameManager : NetworkBehaviour
         currentCheckpointIndex.Value = 0;
 
         RespawnPlayersAtCheckpoint();
+        nextChapterStartIndex = 0;
     }
 
     public void EndChapter()
@@ -153,5 +156,45 @@ public class GameManager : NetworkBehaviour
         if (checkpoints.Length == 0 || chapterStartPoints.Length == 0) return 0;
         int checkpointsPerChapter = checkpoints.Length / chapterStartPoints.Length;
         return Mathf.Clamp(currentCheckpointIndex.Value / checkpointsPerChapter, 0, chapterStartPoints.Length - 1);
+    }
+
+    public Vector3 GetChapterStartPosition()
+    {
+        int chapterIndex = GetChapterIndex();
+        if (chapterStartPoints.Length > chapterIndex && chapterStartPoints[chapterIndex] != null)
+            return chapterStartPoints[chapterIndex].position;
+
+        return transform.position; 
+    }
+
+    public Vector3 GetChapterStartPositionForPlayer(PlayerMovement player)
+    {
+        int chapterIndex = GetChapterIndex();
+
+        if (chapterStartPoints.Length == 0)
+            return transform.position;
+
+        int playerIndex = players.IndexOf(player);
+
+        // Wrap around if more players than start points
+        int spawnIndex = playerIndex % chapterStartPoints.Length;
+
+        // Offset for chapter
+        int finalIndex = spawnIndex + (chapterIndex * chapterStartPoints.Length);
+        finalIndex = Mathf.Min(finalIndex, chapterStartPoints.Length - 1);
+
+        return chapterStartPoints[finalIndex].position;
+    }
+
+    public Vector3 GetNextChapterStartPosition()
+    {
+        if (chapterStartPoints.Length == 0)
+            return transform.position; 
+
+        Vector3 spawnPos = chapterStartPoints[nextChapterStartIndex].position;
+
+        nextChapterStartIndex = (nextChapterStartIndex + 1) % chapterStartPoints.Length;
+
+        return spawnPos;
     }
 }

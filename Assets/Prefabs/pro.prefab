@@ -533,15 +533,21 @@ MonoBehaviour:
   warningDistance: 15
   limitDistance: 20
   outOfRangeDuration: 5
+  failUiHoldSeconds: 5
+  menuSceneName: HostClientMenu
   groundCheck: {fileID: 8103544638888057991}
   groundRadius: 0.4
   groundLayer:
     serializedVersion: 2
     m_Bits: 8
   collectRange: 2
-  mouseSensitivity: 2
-  cameraDistance: 4
+  mouseSensitivity: 1
+  cameraDistance: 2
   cameraHeight: 2
+  viewConePrefab: {fileID: 2032494074075257880, guid: a716a385109aa314ba6780e01b7b7802,
+    type: 3}
+  viewConeDistance: 10
+  viewConeAngle: 45
 --- !u!136 &88952966652195418
 CapsuleCollider:
   m_ObjectHideFlags: 0
