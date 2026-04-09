@@ -503,7 +503,7 @@ MonoBehaviour:
   InScenePlacedSourceGlobalObjectIdHash: 3144996663
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
+  ActiveSceneSynchronization: 1
   SceneMigrationSynchronization: 1
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
@@ -535,6 +535,7 @@ MonoBehaviour:
   outOfRangeDuration: 5
   failUiHoldSeconds: 5
   menuSceneName: HostClientMenu
+  maxHealth: 50
   groundCheck: {fileID: 8103544638888057991}
   groundRadius: 0.4
   groundLayer:
@@ -544,10 +545,6 @@ MonoBehaviour:
   mouseSensitivity: 1
   cameraDistance: 2
   cameraHeight: 2
-  viewConePrefab: {fileID: 2032494074075257880, guid: a716a385109aa314ba6780e01b7b7802,
-    type: 3}
-  viewConeDistance: 10
-  viewConeAngle: 45
 --- !u!136 &88952966652195418
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -595,9 +592,9 @@ Rigidbody:
   m_ImplicitTensor: 1
   m_UseGravity: 1
   m_IsKinematic: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_Constraints: 112
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
 --- !u!114 &7082590029038310314
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -617,9 +614,9 @@ MonoBehaviour:
   SyncRotAngleX: 1
   SyncRotAngleY: 1
   SyncRotAngleZ: 1
-  SyncScaleX: 1
-  SyncScaleY: 1
-  SyncScaleZ: 1
+  SyncScaleX: 0
+  SyncScaleY: 0
+  SyncScaleZ: 0
   PositionThreshold: 0.001
   RotAngleThreshold: 0.01
   ScaleThreshold: 0.01

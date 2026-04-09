@@ -28,6 +28,13 @@ public class PlayerMovement : NetworkBehaviour
     public float failUiHoldSeconds = 5f;
     public string menuSceneName = "HostClientMenu";
 
+    [Header("Health Settings")]
+    public int maxHealth = 100;
+
+    [Header("Revive Settings")]
+    public float reviveRange = 2f;
+    public float reviveHoldSeconds = 5f;
+
     [Header("Ground Check")]
     public Transform groundCheck;
     public float groundRadius = 0.3f;
@@ -61,7 +68,20 @@ public class PlayerMovement : NetworkBehaviour
     private bool jumpRequested = false;
 
     private NetworkVariable<int> selectedCharacterIndex = new NetworkVariable<int>();
+
     private NetworkVariable<bool> isWalkingNet = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<int> currentHealthNet = new NetworkVariable<int>(
+        100,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> isDeadNet = new NetworkVariable<bool>(
         false,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
@@ -75,8 +95,13 @@ public class PlayerMovement : NetworkBehaviour
 
     private CinemachineVirtualCamera virtualCam;
 
+    private PlayerMovement reviveTarget;
+    private float reviveHoldTimer = 0f;
+
     public Vector3 LastInput => lastInput;
     public int SelectedCharacterIndex => selectedCharacterIndex.Value;
+    public int CurrentHealth => currentHealthNet.Value;
+    public bool IsDead => isDeadNet.Value;
 
     public static event System.Action<PlayerMovement> OnPlayerDespawned;
 
@@ -93,6 +118,9 @@ public class PlayerMovement : NetworkBehaviour
         if (IsServer && characterConfigs.Count > 0)
             selectedCharacterIndex.Value = defaultCharacterIndex;
 
+        if (IsServer)
+            currentHealthNet.Value = maxHealth;
+
         ApplyCharacterConfig(selectedCharacterIndex.Value);
         SpawnSelectedModel();
 
@@ -106,6 +134,13 @@ public class PlayerMovement : NetworkBehaviour
         {
             ApplyAnimationState(newValue);
         };
+
+        isDeadNet.OnValueChanged += (oldValue, newValue) =>
+        {
+            ApplyDeadState(newValue);
+        };
+
+        ApplyDeadState(isDeadNet.Value);
 
         if (IsOwner)
             AssignCamera();
@@ -248,6 +283,12 @@ public class PlayerMovement : NetworkBehaviour
 
         if (Input.GetKeyDown(KeyCode.K))
             RequestJumpServerRpc();
+
+        if (Input.GetKeyDown(KeyCode.M))
+            DebugKillServerRpc();
+
+        if (!isDeadNet.Value)
+            HandleReviveInput();
     }
 
     void HandleCameraRotation()
@@ -284,6 +325,9 @@ public class PlayerMovement : NetworkBehaviour
 
         UpdateGroundCheck();
 
+        if (isDeadNet.Value)
+            return;
+
         if (IsServer)
         {
             ServerMovement();
@@ -314,6 +358,9 @@ public class PlayerMovement : NetworkBehaviour
 
     void HandleInput()
     {
+        if (isDeadNet.Value)
+            return;
+
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
 
@@ -324,13 +371,80 @@ public class PlayerMovement : NetworkBehaviour
 
         SendInputServerRpc(input);
 
-        DetectItem();
+        if (!HandleReviveInput())
+            DetectItem();
+    }
+
+    bool HandleReviveInput()
+    {
+        if (!IsOwner || isDeadNet.Value)
+            return false;
+
+        PlayerMovement target = FindNearestDeadPlayer();
+
+        if (target != null && Input.GetKey(KeyCode.F))
+        {
+            if (reviveTarget != target)
+            {
+                reviveTarget = target;
+                reviveHoldTimer = 0f;
+            }
+
+            reviveHoldTimer += Time.deltaTime;
+
+            if (reviveHoldTimer >= reviveHoldSeconds)
+            {
+                ReviveTargetServerRpc(new NetworkObjectReference(reviveTarget.NetworkObject));
+                ResetReviveHold();
+            }
+
+            return true;
+        }
+
+        ResetReviveHold();
+        return false;
+    }
+
+    void ResetReviveHold()
+    {
+        reviveTarget = null;
+        reviveHoldTimer = 0f;
+    }
+
+    PlayerMovement FindNearestDeadPlayer()
+    {
+        PlayerMovement nearest = null;
+        float nearestDist = reviveRange + 1f;
+
+        foreach (var player in players)
+        {
+            if (player == null || player == this || !player.IsSpawned || !player.isDeadNet.Value)
+                continue;
+
+            float d = Vector3.Distance(transform.position, player.transform.position);
+            if (d < reviveRange && d < nearestDist)
+            {
+                nearest = player;
+                nearestDist = d;
+            }
+        }
+
+        return nearest;
     }
 
     [ServerRpc(RequireOwnership = false)]
     void RequestJumpServerRpc()
     {
         jumpRequested = true;
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    void DebugKillServerRpc()
+    {
+        if (!isDeadNet.Value)
+        {
+            ApplyDamage(maxHealth);
+        }
     }
 
     void OnCollisionEnter(Collision collision)
@@ -533,6 +647,30 @@ public class PlayerMovement : NetworkBehaviour
             animator.SetBool("isWalking", walking);
     }
 
+    void ApplyDeadState(bool dead)
+    {
+        if (rb != null)
+        {
+            if (dead)
+            {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = true;
+                rb.useGravity = false;
+                rb.Sleep();
+            }
+            else
+            {
+                rb.isKinematic = !IsServer;
+                rb.useGravity = true;
+                rb.WakeUp();
+            }
+        }
+
+        if (animator != null)
+            animator.SetBool("isWalking", false);
+    }
+
     public void SelectCharacter(int index)
     {
         if (!IsOwner) return;
@@ -580,6 +718,97 @@ public class PlayerMovement : NetworkBehaviour
         animator?.SetBool("isWalking", false);
 
         Debug.Log($"[PlayerMovement] Respawned at {position}");
+    }
+
+    public void TakeDamage(int amount)
+    {
+        if (amount <= 0 || isDeadNet.Value)
+            return;
+
+        if (IsServer)
+        {
+            ApplyDamage(amount);
+        }
+        else
+        {
+            TakeDamageServerRpc(amount);
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    void TakeDamageServerRpc(int amount)
+    {
+        ApplyDamage(amount);
+    }
+
+    void ApplyDamage(int amount)
+    {
+        if (isDeadNet.Value)
+            return;
+
+        currentHealthNet.Value -= amount;
+        Debug.Log("Player took damage, health = " + currentHealthNet.Value);
+
+        if (currentHealthNet.Value <= 0)
+        {
+            currentHealthNet.Value = 0;
+            Die();
+        }
+    }
+
+    void Die()
+    {
+        if (isDeadNet.Value)
+            return;
+
+        isDeadNet.Value = true;
+        ApplyDeadState(true);
+        Debug.Log("Player died!");
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    void ReviveTargetServerRpc(NetworkObjectReference targetRef)
+    {
+        if (!targetRef.TryGet(out NetworkObject targetObject))
+            return;
+
+        if (!targetObject.TryGetComponent(out PlayerMovement target))
+            return;
+
+        if (target == null || !target.IsSpawned || !target.isDeadNet.Value)
+            return;
+
+        float distance = Vector3.Distance(transform.position, target.transform.position);
+        if (distance > reviveRange)
+            return;
+
+        target.ReviveFromDeath();
+    }
+
+    void ReviveFromDeath()
+    {
+        if (!IsServer || !isDeadNet.Value)
+            return;
+
+        isDeadNet.Value = false;
+        currentHealthNet.Value = maxHealth;
+
+        lastInput = Vector3.zero;
+        jumpRequested = false;
+        isTouchingGroundTag = false;
+        reviveTarget = null;
+        reviveHoldTimer = 0f;
+
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            rb.WakeUp();
+        }
+
+        ApplyDeadState(false);
+
+        Debug.Log("[PlayerMovement] Player revived!");
     }
 
     public override void OnDestroy()

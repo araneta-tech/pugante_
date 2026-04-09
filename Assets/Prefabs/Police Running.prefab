@@ -94,7 +94,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &6445079154664145901
 RectTransform:
   m_ObjectHideFlags: 0
@@ -212,17 +212,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -38.56
+      value: -37.76
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.022
+      value: -0.04
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 12.14
+      value: -11.53
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
@@ -444,6 +444,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: Police Running
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 382a3c802a17369488d8031d24311528,
+        type: 3}
+      propertyPath: m_TagString
+      value: Enemy
+      objectReference: {fileID: 0}
     - target: {fileID: 2559285840627121667, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -613,6 +618,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 5084598320593518775}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 382a3c802a17369488d8031d24311528,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 294305151943781721}
   m_SourcePrefab: {fileID: 100100000, guid: 382a3c802a17369488d8031d24311528, type: 3}
 --- !u!1 &5813210467224468577 stripped
 GameObject:
@@ -636,7 +645,7 @@ MonoBehaviour:
   InScenePlacedSourceGlobalObjectIdHash: 4118234612
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  ActiveSceneSynchronization: 1
+  ActiveSceneSynchronization: 0
   SceneMigrationSynchronization: 1
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
@@ -653,26 +662,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ad934efded084c44a324cc0e597bc70, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  agent: {fileID: 5749588812625188162}
-  animator: {fileID: 0}
   waypointHolder: {fileID: 0}
-  lineOfSightRadius: 10
-  viewAngle: 120
+  patrolSpeed: 10
+  chaseSpeed: 13
+  detectionRadius: 13.9
+  viewAngle: 85.84
+  playerLayer:
+    serializedVersion: 2
+    m_Bits: 1
   obstacleLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 128
   attackRadius: 2
-  attackDelay: 0.8
-  patrolSpeed: 4
-  chaseSpeed: 5
-  loseDistance: 15
-  loseTime: 3
-  alertUIPrefab: {fileID: 0}
-  alertOffset: {x: 0, y: 2, z: 0}
-  alertDisplayDuration: 1.5
-  playerDetectionUI: {fileID: 7849919709720084516}
-  audioSource: {fileID: 6890941093325877730}
-  alertSound: {fileID: 8300000, guid: c91c0a11d8dec0342bd8327105b61db5, type: 3}
+  damageAmount: 10
+  attackCooldown: 1
 --- !u!114 &5425205182781803408
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -695,13 +698,13 @@ MonoBehaviour:
   SyncScaleX: 0
   SyncScaleY: 0
   SyncScaleZ: 0
-  PositionThreshold: 0.001
+  PositionThreshold: 0.05
   RotAngleThreshold: 0.01
   ScaleThreshold: 0.01
   UseQuaternionSynchronization: 0
   UseQuaternionCompression: 0
   UseHalfFloatPrecision: 0
-  InLocalSpace: 0
+  InLocalSpace: 1
   Interpolate: 1
   SlerpPosition: 0
 --- !u!54 &2778191603028872689
@@ -728,9 +731,9 @@ Rigidbody:
   m_ImplicitTensor: 1
   m_UseGravity: 1
   m_IsKinematic: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_Constraints: 126
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
 --- !u!114 &4199706141571586926
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -761,7 +764,7 @@ NavMeshAgent:
   m_AutoTraverseOffMeshLink: 1
   m_AutoBraking: 1
   m_AutoRepath: 1
-  m_Height: 1
+  m_Height: 2
   m_BaseOffset: 0.5
   m_WalkableMask: 4294967295
   m_ObstacleAvoidanceType: 4
@@ -806,7 +809,7 @@ AudioSource:
   SpatializePostEffects: 0
   Priority: 128
   DopplerLevel: 1
-  MinDistance: 1
+  MinDistance: 2.1711922
   MaxDistance: 500
   Pan2D: 0
   rolloffMode: 0
@@ -903,6 +906,20 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &294305151943781721
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5813210467224468577}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8d0727d5ae3244e3b569694d3912374, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  TransitionStateInfoList: []
+  m_Animator: {fileID: 5084598320593518775}
 --- !u!4 &6622398882591499995 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,

@@ -1,187 +1,98 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 
-public class PatrolAI : MonoBehaviour
+[RequireComponent(typeof(NetworkObject))]
+[RequireComponent(typeof(NetworkTransform))]
+public class EnemyPatrolAI : NetworkBehaviour
 {
-    public NavMeshAgent agent;
-    public Animator animator;
+    private NavMeshAgent agent;
+    private Animator animator;
 
-    [Header("Waypoint System")]
-    public WaypointHolder waypointHolder;
-
+    [Header("Waypoint Holder")]
+    public Transform waypointHolder;
     private Transform[] waypoints;
     private int currentIndex = 0;
 
-    private Transform detectedPlayer;
-
-    [Header("Vision Settings")]
-    public float lineOfSightRadius = 10f;
-    public float viewAngle = 120f;
-    public LayerMask obstacleLayer;
-
-    [Header("Combat Settings")]
-    public float attackRadius = 2f;
-
-    [Header("Attack Timing")]
-    public float attackDelay = 0.8f;
-    private float attackTimer = 0f;
-
-    [Header("Enemy Speed")]
+    [Header("Movement")]
     public float patrolSpeed = 2f;
     public float chaseSpeed = 4f;
 
-    [Header("Lose Player Settings")]
-    public float loseDistance = 15f;
-    public float loseTime = 3f;
+    [Header("Detection")]
+    public float detectionRadius = 10f;
+    public float viewAngle = 120f;
+    public LayerMask playerLayer;
+    public LayerMask obstacleLayer;
 
-    private float loseTimer = 0f;
+    [Header("Attack")]
+    public float attackRadius = 2f;
+    public int damageAmount = 10;        // NEW: damage per hit
+    public float attackCooldown = 1.0f;  // NEW: cooldown between hits
+    private float attackTimer;
 
-    [Header("Alert UI (World)")]
-    public GameObject alertUIPrefab;
-    private GameObject alertUIInstance;
-    public Vector3 alertOffset = new Vector3(0, 2f, 0);
+    private Transform targetPlayer;
 
-    private float alertDisplayTimer = 0f;
-    public float alertDisplayDuration = 1.5f;
-
-    [Header("PLAYER UI (SCREEN) 🔥")]
-    public GameObject playerDetectionUI; // Assign Canvas UI here
-
-    [Header("Sound Settings")]
-    public AudioSource audioSource;
-    public AudioClip alertSound;
-
-    private bool hasPlayedAlertSound = false;
-    private bool hasBusted = false;
-
-    private enum AIState
-    {
-        Patrol,
-        Alert,
-        Chase,
-        Attack,
-        ReturnToPatrol
-    }
-
-    private AIState currentState = AIState.Patrol;
+    private enum AIState { Patrol, Chase, Attack }
+    private NetworkVariable<int> netState = new NetworkVariable<int>();
 
     void Start()
     {
-        if (agent == null)
-            agent = GetComponent<NavMeshAgent>();
-
-        if (animator == null)
-            animator = GetComponentInChildren<Animator>();
-
-        if (waypointHolder == null) return;
-
-        waypoints = waypointHolder.GetWaypoints();
-        if (waypoints.Length == 0) return;
-
+        agent = GetComponent<NavMeshAgent>();
+        animator = GetComponentInChildren<Animator>();
         agent.speed = patrolSpeed;
-        agent.SetDestination(waypoints[currentIndex].position);
 
-        if (alertUIPrefab != null)
+        // Ensure agent starts at its current transform position
+        agent.Warp(transform.position);
+
+        if (waypointHolder != null)
         {
-            alertUIInstance = Instantiate(alertUIPrefab, transform.position + alertOffset, Quaternion.identity);
-            alertUIInstance.transform.SetParent(transform);
-            alertUIInstance.transform.localPosition = alertOffset;
-            alertUIInstance.SetActive(false);
+            int count = waypointHolder.childCount;
+            waypoints = new Transform[count];
+            for (int i = 0; i < count; i++)
+                waypoints[i] = waypointHolder.GetChild(i);
+
+            if (waypoints.Length > 0)
+                agent.SetDestination(waypoints[currentIndex].position);
         }
+    }
 
-        if (audioSource == null)
-            audioSource = GetComponent<AudioSource>();
-
-        // Ensure player UI starts hidden
-        if (playerDetectionUI != null)
-            playerDetectionUI.SetActive(false);
+    public override void OnNetworkSpawn()
+    {
+        if (IsServer)
+        {
+            SetState(AIState.Patrol);
+        }
     }
 
     void Update()
     {
-        switch (currentState)
+        if (IsServer)
         {
-            case AIState.Patrol:
-                Patrol();
-                DetectPlayer();
-                break;
-
-            case AIState.Alert:
-                AlertState();
-                break;
-
-            case AIState.Chase:
-                ChasePlayer();
-                break;
-
-            case AIState.Attack:
-                AttackPlayer();
-                break;
-
-            case AIState.ReturnToPatrol:
-                ReturnToPatrol();
-                break;
+            RunServerAI();
         }
 
-        HandlePlayerDetectionUI(); // 🔥 NEW FUNCTION
-
-        if (alertUIInstance != null && alertUIInstance.activeSelf)
-        {
-            alertDisplayTimer -= Time.deltaTime;
-
-            if (alertDisplayTimer <= 0f && detectedPlayer == null)
-            {
-                alertUIInstance.SetActive(false);
-            }
-        }
-
-        if (animator != null && currentState != AIState.Attack)
-            animator.SetBool("isAttacking", false);
+        SyncClientVisuals();
     }
 
-    // -------------------------
-    // 🔥 PLAYER UI CONTROL
-    // -------------------------
-    void HandlePlayerDetectionUI()
+    // ---------------- SERVER AI ----------------
+    void RunServerAI()
     {
-        if (playerDetectionUI == null) return;
-
-        // Show UI if THIS client is detected
-        if (detectedPlayer != null)
+        switch ((AIState)netState.Value)
         {
-            PlayerMovement localPlayer = GetLocalPlayer();
-
-            if (localPlayer != null && detectedPlayer == localPlayer.transform)
-            {
-                if (!playerDetectionUI.activeSelf)
-                    playerDetectionUI.SetActive(true);
-
-                return;
-            }
+            case AIState.Patrol: Patrol(); DetectPlayer(); break;
+            case AIState.Chase: Chase(); break;
+            case AIState.Attack: Attack(); break;
         }
-
-        // Hide if not detected
-        if (playerDetectionUI.activeSelf)
-            playerDetectionUI.SetActive(false);
     }
 
-    PlayerMovement GetLocalPlayer()
-    {
-        foreach (var p in FindObjectsOfType<PlayerMovement>())
-        {
-            if (p.IsOwner && p.OwnerClientId == NetworkManager.Singleton.LocalClientId)
-                return p;
-        }
-        return null;
-    }
-
-    // -------------------------
-    // EXISTING FUNCTIONS (UNCHANGED LOGIC)
-    // -------------------------
+    void SetState(AIState newState) { if (IsServer) netState.Value = (int)newState; }
 
     void Patrol()
     {
+        agent.speed = patrolSpeed;
+        if (waypoints == null || waypoints.Length == 0) return;
+
         if (!agent.pathPending && agent.remainingDistance < 0.5f)
         {
             currentIndex = (currentIndex + 1) % waypoints.Length;
@@ -191,176 +102,108 @@ public class PatrolAI : MonoBehaviour
 
     void DetectPlayer()
     {
-        if (NetworkUI.Instance != null && !NetworkUI.Instance.IsPlaying)
-            return;
-
-        Collider[] hits = Physics.OverlapSphere(transform.position, lineOfSightRadius);
-
-        foreach (Collider hit in hits)
+        Collider[] hits = Physics.OverlapSphere(transform.position, detectionRadius, playerLayer);
+        foreach (var hit in hits)
         {
-            PlayerMovement player = hit.GetComponent<PlayerMovement>();
-            if (player == null) continue;
+            if (!hit.CompareTag("Player")) continue;
 
-            Vector3 dir = (player.transform.position - transform.position).normalized;
-            float angle = Vector3.Angle(transform.forward, dir);
+            Vector3 dirToPlayer = (hit.transform.position - transform.position).normalized;
+            float angle = Vector3.Angle(transform.forward, dirToPlayer);
 
-            if (angle > viewAngle / 2) continue;
-
-            float dist = Vector3.Distance(transform.position, player.transform.position);
-
-            if (!Physics.Raycast(transform.position + Vector3.up, dir, dist, obstacleLayer))
+            if (angle <= viewAngle / 2f)
             {
-                detectedPlayer = player.transform;
-                currentState = AIState.Alert;
-                hasPlayedAlertSound = false;
-                return;
+                float dist = Vector3.Distance(transform.position, hit.transform.position);
+                if (!Physics.Raycast(transform.position + Vector3.up, dirToPlayer, dist, obstacleLayer))
+                {
+                    targetPlayer = hit.transform;
+                    SetState(AIState.Chase);
+                    agent.speed = chaseSpeed;
+                    return;
+                }
             }
         }
     }
 
-    void AlertState()
+    void Chase()
     {
-        if (detectedPlayer == null)
+        if (targetPlayer == null) { SetState(AIState.Patrol); return; }
+
+        agent.SetDestination(targetPlayer.position);
+
+        Vector3 direction = (targetPlayer.position - transform.position).normalized;
+        direction.y = 0;
+        if (direction != Vector3.zero)
         {
-            currentState = AIState.ReturnToPatrol;
-            return;
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 5f);
         }
 
-        if (alertUIInstance != null && !alertUIInstance.activeSelf)
-            alertUIInstance.SetActive(true);
-
-        alertDisplayTimer = alertDisplayDuration;
-
-        if (!hasPlayedAlertSound && audioSource != null && alertSound != null)
-        {
-            audioSource.PlayOneShot(alertSound);
-            hasPlayedAlertSound = true;
-        }
-
-        agent.SetDestination(detectedPlayer.position);
-
-        float distance = Vector3.Distance(transform.position, detectedPlayer.position);
-
-        if (distance <= attackRadius)
-        {
-            hasBusted = false;
-            currentState = AIState.Attack;
-            return;
-        }
-
-        agent.speed = chaseSpeed;
-        currentState = AIState.Chase;
+        float dist = Vector3.Distance(transform.position, targetPlayer.position);
+        if (dist <= attackRadius) SetState(AIState.Attack);
+        else if (dist > detectionRadius * 1.5f) { targetPlayer = null; SetState(AIState.Patrol); }
     }
 
-    void LateUpdate()
+    void Attack()
     {
-        if (alertUIInstance != null && alertUIInstance.activeSelf)
-        {
-            alertUIInstance.transform.position = transform.position + alertOffset;
+        if (targetPlayer == null) { SetState(AIState.Patrol); return; }
 
-            if (Camera.main != null)
+        agent.SetDestination(transform.position);
+
+        Vector3 direction = (targetPlayer.position - transform.position).normalized;
+        direction.y = 0;
+        if (direction != Vector3.zero)
+        {
+            Quaternion lookRotation = Quaternion.LookRotation(direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * 8f);
+        }
+
+        if (animator != null) animator.SetBool("isAttacking", true);
+
+        float dist = Vector3.Distance(transform.position, targetPlayer.position);
+
+        if (dist <= attackRadius)
+        {
+            attackTimer -= Time.deltaTime;
+            if (attackTimer <= 0f)
             {
-                Vector3 dir = alertUIInstance.transform.position - Camera.main.transform.position;
-                alertUIInstance.transform.rotation = Quaternion.LookRotation(dir);
-            }
-        }
-    }
-
-    void ChasePlayer()
-    {
-        if (alertUIInstance != null && !alertUIInstance.activeSelf)
-            alertUIInstance.SetActive(true);
-
-        alertDisplayTimer = alertDisplayDuration;
-
-        if (detectedPlayer == null)
-        {
-            currentState = AIState.ReturnToPatrol;
-            return;
-        }
-
-        float distance = Vector3.Distance(transform.position, detectedPlayer.position);
-
-        agent.SetDestination(detectedPlayer.position);
-
-        if (distance <= attackRadius)
-        {
-            hasBusted = false;
-            currentState = AIState.Attack;
-            return;
-        }
-
-        if (distance > loseDistance)
-        {
-            loseTimer += Time.deltaTime;
-
-            if (loseTimer >= loseTime)
-            {
-                detectedPlayer = null;
-                loseTimer = 0;
-                currentState = AIState.ReturnToPatrol;
+                ApplyDamage(targetPlayer.gameObject); // NEW: damage call
+                attackTimer = attackCooldown;
             }
         }
         else
         {
-            loseTimer = 0;
+            animator.SetBool("isAttacking", false);
+            SetState(AIState.Chase);
         }
     }
 
-    void AttackPlayer()
+    // ---------------- DAMAGE ----------------
+    void ApplyDamage(GameObject playerObj)
     {
-        if (detectedPlayer == null)
+        var health = playerObj.GetComponent<PlayerMovement>(); // assumes you have a PlayerHealth script
+        if (health != null)
         {
-            currentState = AIState.ReturnToPatrol;
-            return;
-        }
-
-        float distance = Vector3.Distance(transform.position, detectedPlayer.position);
-
-        agent.SetDestination(transform.position);
-
-        if (animator != null)
-            animator.SetBool("isAttacking", true);
-
-        if (!hasBusted && attackTimer == 0f)
-            attackTimer = attackDelay;
-
-        if (!hasBusted)
-        {
-            attackTimer -= Time.deltaTime;
-
-            if (attackTimer <= 0f && distance <= attackRadius)
-            {
-                hasBusted = true;
-                attackTimer = 0f;
-
-                if (GameManager.Instance != null &&
-                    GameManager.Instance.IsSpawned &&
-                    NetworkManager.Singleton != null &&
-                    NetworkManager.Singleton.IsServer)
-                {
-                    GameManager.Instance.PlayerBusted();
-                }
-            }
-        }
-
-        if (distance > attackRadius)
-        {
-            hasBusted = false;
-            attackTimer = 0f;
-            currentState = AIState.Chase;
+            health.TakeDamage(damageAmount);
         }
     }
 
-    void ReturnToPatrol()
+    void SyncClientVisuals()
     {
-        agent.speed = patrolSpeed;
-        agent.SetDestination(waypoints[currentIndex].position);
+        if (animator == null) return;
+        bool attacking = (AIState)netState.Value == AIState.Attack;
+        animator.SetBool("isAttacking", attacking);
+    }
 
-        if (!agent.pathPending && agent.remainingDistance < 1f)
-            currentState = AIState.Patrol;
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, detectionRadius);
 
-        if (alertUIInstance != null && alertUIInstance.activeSelf)
-            alertUIInstance.SetActive(false);
+        Vector3 leftBoundary = Quaternion.Euler(0, -viewAngle / 2f, 0) * transform.forward;
+        Vector3 rightBoundary = Quaternion.Euler(0, viewAngle / 2f, 0) * transform.forward;
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawRay(transform.position, leftBoundary * detectionRadius);
+        Gizmos.DrawRay(transform.position, rightBoundary * detectionRadius);
     }
 }
