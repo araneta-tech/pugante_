@@ -197,7 +197,6 @@ public class NetworkUI : MonoBehaviour
         ReturnToTitleMenu();
     }
 
-    // NEW: unified method to return to TitleMenu and reset cursor state
     private void ReturnToTitleMenu()
     {
         isPlaying = false; // not in game anymore
