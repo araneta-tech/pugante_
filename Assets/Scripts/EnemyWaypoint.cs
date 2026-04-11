@@ -27,8 +27,8 @@ public class EnemyPatrolAI : NetworkBehaviour
 
     [Header("Attack")]
     public float attackRadius = 2f;
-    public int damageAmount = 10;        // NEW: damage per hit
-    public float attackCooldown = 1.0f;  // NEW: cooldown between hits
+    public int damageAmount = 10;        // damage per hit
+    public float attackCooldown = 1.0f;  // cooldown between hits
     private float attackTimer;
 
     private Transform targetPlayer;
@@ -147,6 +147,15 @@ public class EnemyPatrolAI : NetworkBehaviour
     {
         if (targetPlayer == null) { SetState(AIState.Patrol); return; }
 
+        var health = targetPlayer.GetComponent<PlayerMovement>();
+        if (health != null && health.IsDead)   // NEW: if player is dead, reset
+        {
+            targetPlayer = null;
+            animator.SetBool("isAttacking", false);
+            SetState(AIState.Patrol);
+            return;
+        }
+
         agent.SetDestination(transform.position);
 
         Vector3 direction = (targetPlayer.position - transform.position).normalized;
@@ -166,7 +175,7 @@ public class EnemyPatrolAI : NetworkBehaviour
             attackTimer -= Time.deltaTime;
             if (attackTimer <= 0f)
             {
-                ApplyDamage(targetPlayer.gameObject); // NEW: damage call
+                ApplyDamage(targetPlayer.gameObject);
                 attackTimer = attackCooldown;
             }
         }
@@ -180,10 +189,18 @@ public class EnemyPatrolAI : NetworkBehaviour
     // ---------------- DAMAGE ----------------
     void ApplyDamage(GameObject playerObj)
     {
-        var health = playerObj.GetComponent<PlayerMovement>(); // assumes you have a PlayerHealth script
+        var health = playerObj.GetComponent<PlayerMovement>(); // assumes PlayerMovement has health logic
         if (health != null)
         {
             health.TakeDamage(damageAmount);
+
+            // NEW: if player dies after damage, reset AI
+            if (health.IsDead)
+            {
+                targetPlayer = null;
+                animator.SetBool("isAttacking", false);
+                SetState(AIState.Patrol);
+            }
         }
     }
 

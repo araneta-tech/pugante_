@@ -1,7 +1,9 @@
-﻿using UnityEngine;
-using Unity.Netcode;
-using Cinemachine;
+﻿using System.Collections;
 using System.Collections.Generic;
+using Unity.Netcode;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Cinemachine;
 
 [System.Serializable]
 public class CharacterConfig
@@ -13,6 +15,10 @@ public class CharacterConfig
 
 public class PlayerMovement : NetworkBehaviour
 {
+    private const int LifeStateAlive = 0;
+    private const int LifeStateBusted = 1;
+    private const int LifeStateFailed = 2;
+
     [Header("Character Options")]
     public List<CharacterConfig> characterConfigs;
 
@@ -25,7 +31,7 @@ public class PlayerMovement : NetworkBehaviour
     public float outOfRangeDuration = 5f;
 
     [Header("Fail / Return Settings")]
-    public float failUiHoldSeconds = 5f;
+    public float failUiHoldSeconds = 10f;
     public string menuSceneName = "HostClientMenu";
 
     [Header("Health Settings")]
@@ -54,6 +60,7 @@ public class PlayerMovement : NetworkBehaviour
     private static float outOfRangeTimer = 0f;
     private static bool timerActive = false;
     private static bool failSequenceTriggered = false;
+    private static bool titleReturnSequenceTriggered = false;
 
     private static readonly List<PlayerMovement> players = new List<PlayerMovement>();
 
@@ -81,8 +88,8 @@ public class PlayerMovement : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
-    private NetworkVariable<bool> isDeadNet = new NetworkVariable<bool>(
-        false,
+    private NetworkVariable<int> lifeStateNet = new NetworkVariable<int>(
+        LifeStateAlive,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
@@ -101,7 +108,9 @@ public class PlayerMovement : NetworkBehaviour
     public Vector3 LastInput => lastInput;
     public int SelectedCharacterIndex => selectedCharacterIndex.Value;
     public int CurrentHealth => currentHealthNet.Value;
-    public bool IsDead => isDeadNet.Value;
+    public bool IsBusted => lifeStateNet.Value == LifeStateBusted;
+    public bool IsFailed => lifeStateNet.Value == LifeStateFailed;
+    public bool IsDead => lifeStateNet.Value != LifeStateAlive;
 
     public static event System.Action<PlayerMovement> OnPlayerDespawned;
 
@@ -119,7 +128,10 @@ public class PlayerMovement : NetworkBehaviour
             selectedCharacterIndex.Value = defaultCharacterIndex;
 
         if (IsServer)
+        {
             currentHealthNet.Value = maxHealth;
+            lifeStateNet.Value = LifeStateAlive;
+        }
 
         ApplyCharacterConfig(selectedCharacterIndex.Value);
         SpawnSelectedModel();
@@ -135,12 +147,12 @@ public class PlayerMovement : NetworkBehaviour
             ApplyAnimationState(newValue);
         };
 
-        isDeadNet.OnValueChanged += (oldValue, newValue) =>
+        lifeStateNet.OnValueChanged += (oldValue, newValue) =>
         {
-            ApplyDeadState(newValue);
+            ApplyLifeState(newValue);
         };
 
-        ApplyDeadState(isDeadNet.Value);
+        ApplyLifeState(lifeStateNet.Value);
 
         if (IsOwner)
             AssignCamera();
@@ -151,25 +163,18 @@ public class PlayerMovement : NetworkBehaviour
         if (IsServer && GameManager.Instance != null)
         {
             GameManager.Instance.RegisterPlayer(this);
-        }
 
-        if (IsServer)
-        {
-            if (GameManager.Instance != null)
+            Vector3 spawnPos = GameManager.Instance.GetChapterStartPosition();
+            transform.position = spawnPos;
+
+            if (rb != null)
             {
-                Vector3 spawnPos = GameManager.Instance.GetChapterStartPosition();
-
-                transform.position = spawnPos;
-
-                if (rb != null)
-                {
-                    rb.velocity = Vector3.zero;
-                    rb.angularVelocity = Vector3.zero;
-                    rb.Sleep();
-                }
-
-                SetSpawnPositionClientRpc(spawnPos);
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.Sleep();
             }
+
+            SetSpawnPositionClientRpc(spawnPos);
         }
     }
 
@@ -229,6 +234,19 @@ public class PlayerMovement : NetworkBehaviour
         {
             OnPlayerDespawned(this);
         }
+
+        ResetStaticsIfNoPlayersLeft();
+    }
+
+    void ResetStaticsIfNoPlayersLeft()
+    {
+        if (players.Count > 0)
+            return;
+
+        outOfRangeTimer = 0f;
+        timerActive = false;
+        failSequenceTriggered = false;
+        titleReturnSequenceTriggered = false;
     }
 
     void ApplyCharacterConfig(int index)
@@ -280,6 +298,10 @@ public class PlayerMovement : NetworkBehaviour
         if (!IsOwner || !IsSpawned) return;
 
         HandleCameraRotation();
+        HandleCameraZoom();
+
+        if (IsBusted || IsFailed)
+            return;
 
         if (Input.GetKeyDown(KeyCode.K))
             RequestJumpServerRpc();
@@ -287,8 +309,7 @@ public class PlayerMovement : NetworkBehaviour
         if (Input.GetKeyDown(KeyCode.M))
             DebugKillServerRpc();
 
-        if (!isDeadNet.Value)
-            HandleReviveInput();
+        HandleReviveInput();
     }
 
     void HandleCameraRotation()
@@ -325,7 +346,7 @@ public class PlayerMovement : NetworkBehaviour
 
         UpdateGroundCheck();
 
-        if (isDeadNet.Value)
+        if (IsBusted || IsFailed)
             return;
 
         if (IsServer)
@@ -358,7 +379,7 @@ public class PlayerMovement : NetworkBehaviour
 
     void HandleInput()
     {
-        if (isDeadNet.Value)
+        if (IsBusted || IsFailed)
             return;
 
         float x = Input.GetAxis("Horizontal");
@@ -377,10 +398,10 @@ public class PlayerMovement : NetworkBehaviour
 
     bool HandleReviveInput()
     {
-        if (!IsOwner || isDeadNet.Value)
+        if (!IsOwner || IsBusted || IsFailed)
             return false;
 
-        PlayerMovement target = FindNearestDeadPlayer();
+        PlayerMovement target = FindNearestBustedPlayer();
 
         if (target != null && Input.GetKey(KeyCode.F))
         {
@@ -411,14 +432,14 @@ public class PlayerMovement : NetworkBehaviour
         reviveHoldTimer = 0f;
     }
 
-    PlayerMovement FindNearestDeadPlayer()
+    PlayerMovement FindNearestBustedPlayer()
     {
         PlayerMovement nearest = null;
         float nearestDist = reviveRange + 1f;
 
         foreach (var player in players)
         {
-            if (player == null || player == this || !player.IsSpawned || !player.isDeadNet.Value)
+            if (player == null || player == this || !player.IsSpawned || !player.IsBusted)
                 continue;
 
             float d = Vector3.Distance(transform.position, player.transform.position);
@@ -441,7 +462,7 @@ public class PlayerMovement : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     void DebugKillServerRpc()
     {
-        if (!isDeadNet.Value)
+        if (lifeStateNet.Value == LifeStateAlive)
         {
             ApplyDamage(maxHealth);
         }
@@ -615,30 +636,72 @@ public class PlayerMovement : NetworkBehaviour
         failSequenceTriggered = true;
         ResetDistanceTimer();
 
-        DespawnAllPlayerObjects();
+        SetAllPlayersFailed();
 
-        if (NetworkUI.Instance != null)
+        if (IsServer)
         {
-            NetworkUI.Instance.StartFailUISequence(5f);
+            BeginTitleReturnSequenceClientRpc(failUiHoldSeconds);
         }
-        else
-        {
-            Debug.LogWarning("[PlayerMovement] NetworkUI.Instance is missing.");
-        }
+
+        BeginTitleReturnSequence(failUiHoldSeconds);
     }
 
-    void DespawnAllPlayerObjects()
+    void SetAllPlayersFailed()
     {
         if (!IsServer || NetworkManager.Singleton == null)
             return;
 
         foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
         {
-            if (client.PlayerObject != null && client.PlayerObject.IsSpawned)
+            if (client.PlayerObject != null &&
+                client.PlayerObject.TryGetComponent(out PlayerMovement pm))
             {
-                client.PlayerObject.Despawn(true);
+                pm.ForceFailedState();
             }
         }
+    }
+
+    void ForceFailedState()
+    {
+        if (lifeStateNet.Value == LifeStateFailed)
+            return;
+
+        currentHealthNet.Value = 0;
+        lifeStateNet.Value = LifeStateFailed;
+
+        lastInput = Vector3.zero;
+        jumpRequested = false;
+        reviveTarget = null;
+        reviveHoldTimer = 0f;
+
+        ApplyLifeState(LifeStateFailed);
+    }
+
+    [ClientRpc]
+    void BeginTitleReturnSequenceClientRpc(float delay)
+    {
+        BeginTitleReturnSequence(delay);
+    }
+
+    void BeginTitleReturnSequence(float delay)
+    {
+        if (titleReturnSequenceTriggered)
+            return;
+
+        titleReturnSequenceTriggered = true;
+        StartCoroutine(ReturnToTitleRoutine(delay));
+    }
+
+    IEnumerator ReturnToTitleRoutine(float delay)
+    {
+        if (delay > 0f)
+            yield return new WaitForSeconds(delay);
+
+        if (NetworkManager.Singleton != null)
+            NetworkManager.Singleton.Shutdown();
+
+        yield return null;
+        SceneManager.LoadScene(menuSceneName);
     }
 
     void ApplyAnimationState(bool walking)
@@ -647,23 +710,23 @@ public class PlayerMovement : NetworkBehaviour
             animator.SetBool("isWalking", walking);
     }
 
-    void ApplyDeadState(bool dead)
+    void ApplyLifeState(int state)
     {
         if (rb != null)
         {
-            if (dead)
+            if (state == LifeStateAlive)
+            {
+                rb.isKinematic = !IsServer;
+                rb.useGravity = true;
+                rb.WakeUp();
+            }
+            else
             {
                 rb.velocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
                 rb.isKinematic = true;
                 rb.useGravity = false;
                 rb.Sleep();
-            }
-            else
-            {
-                rb.isKinematic = !IsServer;
-                rb.useGravity = true;
-                rb.WakeUp();
             }
         }
 
@@ -722,7 +785,7 @@ public class PlayerMovement : NetworkBehaviour
 
     public void TakeDamage(int amount)
     {
-        if (amount <= 0 || isDeadNet.Value)
+        if (amount <= 0 || IsBusted || IsFailed)
             return;
 
         if (IsServer)
@@ -743,7 +806,7 @@ public class PlayerMovement : NetworkBehaviour
 
     void ApplyDamage(int amount)
     {
-        if (isDeadNet.Value)
+        if (IsBusted || IsFailed)
             return;
 
         currentHealthNet.Value -= amount;
@@ -752,18 +815,18 @@ public class PlayerMovement : NetworkBehaviour
         if (currentHealthNet.Value <= 0)
         {
             currentHealthNet.Value = 0;
-            Die();
+            Bust();
         }
     }
 
-    void Die()
+    void Bust()
     {
-        if (isDeadNet.Value)
+        if (lifeStateNet.Value != LifeStateAlive)
             return;
 
-        isDeadNet.Value = true;
-        ApplyDeadState(true);
-        Debug.Log("Player died!");
+        lifeStateNet.Value = LifeStateBusted;
+        ApplyLifeState(LifeStateBusted);
+        Debug.Log("Player busted!");
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -775,22 +838,22 @@ public class PlayerMovement : NetworkBehaviour
         if (!targetObject.TryGetComponent(out PlayerMovement target))
             return;
 
-        if (target == null || !target.IsSpawned || !target.isDeadNet.Value)
+        if (target == null || !target.IsSpawned || !target.IsBusted)
             return;
 
         float distance = Vector3.Distance(transform.position, target.transform.position);
         if (distance > reviveRange)
             return;
 
-        target.ReviveFromDeath();
+        target.ReviveFromBusted();
     }
 
-    void ReviveFromDeath()
+    void ReviveFromBusted()
     {
-        if (!IsServer || !isDeadNet.Value)
+        if (!IsServer || !IsBusted)
             return;
 
-        isDeadNet.Value = false;
+        lifeStateNet.Value = LifeStateAlive;
         currentHealthNet.Value = maxHealth;
 
         lastInput = Vector3.zero;
@@ -806,7 +869,7 @@ public class PlayerMovement : NetworkBehaviour
             rb.WakeUp();
         }
 
-        ApplyDeadState(false);
+        ApplyLifeState(LifeStateAlive);
 
         Debug.Log("[PlayerMovement] Player revived!");
     }
@@ -815,6 +878,8 @@ public class PlayerMovement : NetworkBehaviour
     {
         if (players.Contains(this))
             players.Remove(this);
+
+        ResetStaticsIfNoPlayersLeft();
 
         base.OnDestroy();
     }

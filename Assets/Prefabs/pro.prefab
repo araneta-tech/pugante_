@@ -536,6 +536,10 @@ MonoBehaviour:
   failUiHoldSeconds: 5
   menuSceneName: HostClientMenu
   maxHealth: 50
+  reviveRange: 2
+  reviveHoldSeconds: 5
+  bustedText: {fileID: 0}
+  failText: {fileID: 0}
   groundCheck: {fileID: 8103544638888057991}
   groundRadius: 0.4
   groundLayer:

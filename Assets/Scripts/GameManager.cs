@@ -8,10 +8,6 @@ public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
 
-    [Header("Lives Settings")]
-    public int maxLives = 3;
-    private NetworkVariable<int> currentLives = new NetworkVariable<int>();
-
     [Header("Checkpoints")]
     public Transform[] checkpoints;
     private NetworkVariable<int> currentCheckpointIndex = new NetworkVariable<int>(0);
@@ -27,6 +23,8 @@ public class GameManager : NetworkBehaviour
 
     private List<PlayerMovement> players = new List<PlayerMovement>();
 
+    private bool gameOverTriggered = false; // prevent multiple triggers
+
     public override void OnNetworkSpawn()
     {
         if (Instance == null) Instance = this;
@@ -34,7 +32,6 @@ public class GameManager : NetworkBehaviour
 
         if (IsServer)
         {
-            currentLives.Value = maxLives;
             currentCheckpointIndex.Value = 0;
         }
     }
@@ -70,33 +67,8 @@ public class GameManager : NetworkBehaviour
         if (index > currentCheckpointIndex.Value)
         {
             currentCheckpointIndex.Value = index;
-            currentLives.Value = maxLives;
-            Debug.Log($"[GameManager] Checkpoint reached → Lives reset to {maxLives}");
+            Debug.Log($"[GameManager] Checkpoint reached → Updated to {index}");
         }
-    }
-
-    public void PlayerBusted()
-    {
-        if (!IsServer) return;
-
-        currentLives.Value--;
-        Debug.Log($"[GameManager] Player busted. Lives left: {currentLives.Value}");
-
-        if (currentLives.Value <= 0)
-        {
-            ShowBustedClientRpc();
-            StartCoroutine(ResetChapterAfterDelay());
-        }
-        else
-        {
-            RespawnPlayersAtCheckpoint();
-        }
-    }
-
-    [ClientRpc]
-    void ShowBustedClientRpc()
-    {
-        if (BustedUI.Instance != null) BustedUI.Instance.Show();
     }
 
     public void RespawnPlayersAtCheckpoint()
@@ -134,7 +106,6 @@ public class GameManager : NetworkBehaviour
     {
         Debug.Log("[GameManager] Resetting chapter");
 
-        currentLives.Value = maxLives;
         activatedCheckpoints.Clear();
         currentCheckpointIndex.Value = 0;
 
@@ -147,7 +118,6 @@ public class GameManager : NetworkBehaviour
         Debug.Log("[GameManager] Chapter Completed!");
 
         currentCheckpointIndex.Value = 0;
-        currentLives.Value = maxLives;
         activatedCheckpoints.Clear();
     }
 
@@ -164,7 +134,7 @@ public class GameManager : NetworkBehaviour
         if (chapterStartPoints.Length > chapterIndex && chapterStartPoints[chapterIndex] != null)
             return chapterStartPoints[chapterIndex].position;
 
-        return transform.position; 
+        return transform.position;
     }
 
     public Vector3 GetChapterStartPositionForPlayer(PlayerMovement player)
@@ -189,12 +159,55 @@ public class GameManager : NetworkBehaviour
     public Vector3 GetNextChapterStartPosition()
     {
         if (chapterStartPoints.Length == 0)
-            return transform.position; 
+            return transform.position;
 
         Vector3 spawnPos = chapterStartPoints[nextChapterStartIndex].position;
 
         nextChapterStartIndex = (nextChapterStartIndex + 1) % chapterStartPoints.Length;
 
         return spawnPos;
+    }
+
+    // ---------------- GAME OVER HANDLING ----------------
+    public void CheckForGameOver()
+    {
+        bool allFailed = true;
+        foreach (var p in players)
+        {
+            if (p != null && !p.IsFailed)
+            {
+                allFailed = false;
+                break;
+            }
+        }
+
+        if (allFailed && !gameOverTriggered)
+        {
+            gameOverTriggered = true;
+            StartCoroutine(GameOverRoutine());
+        }
+    }
+
+    private IEnumerator GameOverRoutine()
+    {
+        Debug.Log("[GameManager] Game Over detected. Waiting 5 seconds before stopping...");
+
+        yield return new WaitForSeconds(5f);
+
+        HandleGameOver();
+    }
+
+    public void HandleGameOver()
+    {
+        Debug.Log("[GameManager] Ending game and returning to Title menu.");
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            NetworkManager.Singleton.Shutdown();
+        }
+
+        StopAllCoroutines();
+
+        SceneManager.LoadScene("TitleMenu", LoadSceneMode.Single);
     }
 }

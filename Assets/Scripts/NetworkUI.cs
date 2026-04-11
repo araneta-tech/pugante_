@@ -3,6 +3,7 @@ using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class NetworkUI : MonoBehaviour
 {
@@ -19,12 +20,6 @@ public class NetworkUI : MonoBehaviour
     [Header("Character Selection UI")]
     [SerializeField] private GameObject characterSelectPanel;
     [SerializeField] private CharacterSelectUI characterSelectUI;
-
-    [Header("Fail UI (Game Over)")]
-    [SerializeField] private RawImage failRawImage;
-    [SerializeField] private float failFadeSpeed = 1f;
-
-    private Coroutine failRoutine;
 
     private enum NetworkMode { None, Host, Client }
     private NetworkMode pendingMode = NetworkMode.None;
@@ -47,9 +42,6 @@ public class NetworkUI : MonoBehaviour
 
         stopHostButton.gameObject.SetActive(false);
         characterSelectPanel.SetActive(false);
-
-        if (failRawImage != null)
-            failRawImage.gameObject.SetActive(false);
 
         hostButton.gameObject.SetActive(true);
         clientButton.gameObject.SetActive(true);
@@ -177,36 +169,18 @@ public class NetworkUI : MonoBehaviour
     private void StopHostButtonOnClick()
     {
         if (NetworkManager.Singleton != null)
+        {
             NetworkManager.Singleton.Shutdown();
+            ReturnToTitleMenu();
+        }
     }
 
     private void OnClientDisconnected(ulong clientId)
     {
         if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
         {
-            ReturnToHostClientSelection();
+            ReturnToTitleMenu();
         }
-    }
-
-    private void ReturnToHostClientSelection()
-    {
-        hostButton.gameObject.SetActive(true);
-        clientButton.gameObject.SetActive(true);
-
-        if (networkModePanel != null)
-            networkModePanel.SetActive(true);
-
-        if (characterSelectPanel != null)
-            characterSelectPanel.SetActive(false);
-
-        pendingMode = NetworkMode.None;
-        hasSelectedCharacter = false;
-        isPlaying = false;
-
-        if (failRawImage != null)
-            failRawImage.gameObject.SetActive(false);
-
-        UpdateCursorState();
     }
 
     private void OnDestroy()
@@ -220,47 +194,16 @@ public class NetworkUI : MonoBehaviour
 
     private void OnServerStopped(bool _)
     {
-        ReturnToHostClientSelection();
+        ReturnToTitleMenu();
     }
 
-    public void StartFailUISequence(float waitSeconds)
+    // NEW: unified method to return to TitleMenu and reset cursor state
+    private void ReturnToTitleMenu()
     {
-        if (failRoutine != null)
-            StopCoroutine(failRoutine);
+        isPlaying = false; // not in game anymore
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
 
-        failRoutine = StartCoroutine(FailRoutine(waitSeconds));
-    }
-
-    private IEnumerator FailRoutine(float waitSeconds)
-    {
-        if (failRawImage != null)
-        {
-            failRawImage.gameObject.SetActive(true);
-
-            Color c = failRawImage.color;
-            c.a = 0f;
-            failRawImage.color = c;
-
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime * failFadeSpeed;
-                c.a = Mathf.Clamp01(t);
-                failRawImage.color = c;
-                yield return null;
-            }
-
-            c.a = 1f;
-            failRawImage.color = c;
-        }
-
-        yield return new WaitForSeconds(waitSeconds);
-
-        if (NetworkManager.Singleton != null)
-        {
-            NetworkManager.Singleton.Shutdown();
-        }
-
-        ReturnToHostClientSelection();
+        SceneManager.LoadScene("TitleMenu", LoadSceneMode.Single);
     }
 }
