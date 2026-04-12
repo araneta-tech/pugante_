@@ -5,11 +5,15 @@ using System.Collections;
 public class VentDoor : NetworkBehaviour
 {
     [Header("Door Settings")]
-    public float openAngle = -90f;   
+    public float openAngle = -90f;
     public float rotateDuration = 0.5f;
 
     [Header("Floating UI")]
     public GameObject floatingUIText;
+
+    [Header("Audio Settings")]
+    public AudioClip doorToggleSound;  
+    private AudioSource audioSource;   
 
     private bool isPlayerNearby = false;
     private bool isOpen = false;
@@ -25,6 +29,12 @@ public class VentDoor : NetworkBehaviour
         detectionTrigger = transform.Find("DetectionTrigger");
         if (detectionTrigger == null)
             Debug.LogWarning("DetectionTrigger child not found on Key object!");
+
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
     }
 
     void Start()
@@ -101,7 +111,10 @@ public class VentDoor : NetworkBehaviour
     void ToggleDoorClientRpc()
     {
         if (!isAnimating)
+        {
+            PlayDoorToggleSound();
             StartCoroutine(RotateDoor());
+        }
     }
 
     private IEnumerator RotateDoor()
@@ -126,12 +139,19 @@ public class VentDoor : NetworkBehaviour
         isAnimating = false;
     }
 
+    private void PlayDoorToggleSound()
+    {
+        if (audioSource != null && doorToggleSound != null)
+        {
+            audioSource.PlayOneShot(doorToggleSound); 
+        }
+    }
+
     bool CanInteract(PlayerMovement player)
     {
         if (player == null) return false;
 
-        // Block character index 1
-        if (player.SelectedCharacterIndex == 1)
+        if (player.SelectedCharacterIndex == 1)  
             return false;
 
         return true;

@@ -9,7 +9,11 @@ public class Key : NetworkBehaviour
     public float riseDuration = 1f;
 
     [Header("Floating UI")]
-    public GameObject floatingUIText; 
+    public GameObject floatingUIText;
+
+    [Header("Audio Settings")]
+    public AudioClip keyPressSound;  
+    private AudioSource audioSource; 
 
     [HideInInspector]
     public bool isPlayerNearby = false;
@@ -21,6 +25,12 @@ public class Key : NetworkBehaviour
         detectionTrigger = transform.Find("DetectionTrigger");
         if (detectionTrigger == null)
             Debug.LogWarning("DetectionTrigger child not found on Key object!");
+
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
     }
 
     void Start()
@@ -73,16 +83,26 @@ public class Key : NetworkBehaviour
     {
         if (!IsSpawned) return;
 
+        PlayKeyPressSound();
+
         if (floatingUIText != null)
-            floatingUIText.SetActive(false); 
+            floatingUIText.SetActive(false);
 
         StartCoroutine(RiseAndDestroy());
+    }
+
+    private void PlayKeyPressSound()
+    {
+        if (audioSource != null && keyPressSound != null)
+        {
+            audioSource.PlayOneShot(keyPressSound); 
+        }
     }
 
     private IEnumerator RiseAndDestroy()
     {
         if (floatingUIText != null)
-            floatingUIText.SetActive(false); 
+            floatingUIText.SetActive(false);
 
         Vector3 startPos = transform.position;
         Vector3 targetPos = startPos + Vector3.up * riseHeight;

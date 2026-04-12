@@ -524,7 +524,7 @@ MonoBehaviour:
   - prefab: {fileID: 7890321048301539333, guid: 5b45bcfed477ab842961a95760de10a0,
       type: 3}
     speed: 15
-    jumpForce: 5
+    jumpForce: 10
   - prefab: {fileID: 2548943536178980085, guid: b2b8b4137502e9042ae5b6b52905cf32,
       type: 3}
     speed: 10

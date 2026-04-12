@@ -23,7 +23,7 @@ public class GameManager : NetworkBehaviour
 
     private List<PlayerMovement> players = new List<PlayerMovement>();
 
-    private bool gameOverTriggered = false; // prevent multiple triggers
+    private bool gameOverTriggered = false; 
 
     public override void OnNetworkSpawn()
     {
@@ -146,10 +146,8 @@ public class GameManager : NetworkBehaviour
 
         int playerIndex = players.IndexOf(player);
 
-        // Wrap around if more players than start points
         int spawnIndex = playerIndex % chapterStartPoints.Length;
 
-        // Offset for chapter
         int finalIndex = spawnIndex + (chapterIndex * chapterStartPoints.Length);
         finalIndex = Mathf.Min(finalIndex, chapterStartPoints.Length - 1);
 
@@ -168,7 +166,6 @@ public class GameManager : NetworkBehaviour
         return spawnPos;
     }
 
-    // ---------------- GAME OVER HANDLING ----------------
     public void CheckForGameOverConditions()
     {
         if (players.Count == 0 || gameOverTriggered) return;

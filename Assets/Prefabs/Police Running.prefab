@@ -641,7 +641,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 2033019402
+  GlobalObjectIdHash: 4118234612
   InScenePlacedSourceGlobalObjectIdHash: 4118234612
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
@@ -663,10 +663,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   waypointHolder: {fileID: 0}
-  patrolSpeed: 10
-  chaseSpeed: 13
-  detectionRadius: 13.9
-  viewAngle: 85.84
+  patrolSpeed: 15
+  chaseSpeed: 10
+  detectionRadius: 12
+  viewAngle: 90
   playerLayer:
     serializedVersion: 2
     m_Bits: 1

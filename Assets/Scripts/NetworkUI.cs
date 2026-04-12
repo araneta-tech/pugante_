@@ -199,7 +199,7 @@ public class NetworkUI : MonoBehaviour
 
     private void ReturnToTitleMenu()
     {
-        isPlaying = false; // not in game anymore
+        isPlaying = false; 
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
