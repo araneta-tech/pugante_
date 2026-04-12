@@ -36,6 +36,9 @@ public class EnemyPatrolAI : NetworkBehaviour
     private enum AIState { Patrol, Chase, Attack }
     private NetworkVariable<int> netState = new NetworkVariable<int>();
 
+    [Header("Chase Indicator Child")]
+    public GameObject chaseChildObject; // assign the inactive child in Inspector
+
     void Start()
     {
         agent = GetComponent<NavMeshAgent>();
@@ -55,6 +58,10 @@ public class EnemyPatrolAI : NetworkBehaviour
             if (waypoints.Length > 0)
                 agent.SetDestination(waypoints[currentIndex].position);
         }
+
+        // Ensure chase child starts disabled
+        if (chaseChildObject != null)
+            chaseChildObject.SetActive(false);
     }
 
     public override void OnNetworkSpawn()
@@ -73,6 +80,7 @@ public class EnemyPatrolAI : NetworkBehaviour
         }
 
         SyncClientVisuals();
+        UpdateChaseChildObject(); // NEW: toggle child object
     }
 
     // ---------------- SERVER AI ----------------
@@ -148,7 +156,7 @@ public class EnemyPatrolAI : NetworkBehaviour
         if (targetPlayer == null) { SetState(AIState.Patrol); return; }
 
         var health = targetPlayer.GetComponent<PlayerMovement>();
-        if (health != null && health.IsDead)   // NEW: if player is dead, reset
+        if (health != null && health.IsDead)   // if player is dead, reset
         {
             targetPlayer = null;
             animator.SetBool("isAttacking", false);
@@ -194,7 +202,7 @@ public class EnemyPatrolAI : NetworkBehaviour
         {
             health.TakeDamage(damageAmount);
 
-            // NEW: if player dies after damage, reset AI
+            // if player dies after damage, reset AI
             if (health.IsDead)
             {
                 targetPlayer = null;
@@ -209,6 +217,15 @@ public class EnemyPatrolAI : NetworkBehaviour
         if (animator == null) return;
         bool attacking = (AIState)netState.Value == AIState.Attack;
         animator.SetBool("isAttacking", attacking);
+    }
+
+    // ---------------- NEW FUNCTION ----------------
+    void UpdateChaseChildObject()
+    {
+        if (chaseChildObject != null)
+        {
+            chaseChildObject.SetActive((AIState)netState.Value == AIState.Chase);
+        }
     }
 
     void OnDrawGizmosSelected()

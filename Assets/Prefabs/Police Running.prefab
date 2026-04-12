@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 5776816067415367589}
   - component: {fileID: 529588288305020466}
   - component: {fileID: 251620050271660583}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: AlertIcon
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -88,7 +88,7 @@ GameObject:
   - component: {fileID: 4867591519242112069}
   - component: {fileID: 8160699206826185100}
   - component: {fileID: 373540313334121482}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: AlertCanvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -212,17 +212,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -37.76
+      value: 45.2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.04
+      value: 4.4048805
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -11.53
+      value: 3.5
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
@@ -232,17 +232,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
       propertyPath: m_LocalRotation.z
-      value: 0
+      value: -0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 382a3c802a17369488d8031d24311528,
         type: 3}
@@ -641,11 +641,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 2701992540
+  GlobalObjectIdHash: 2033019402
   InScenePlacedSourceGlobalObjectIdHash: 4118234612
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  ActiveSceneSynchronization: 0
+  ActiveSceneSynchronization: 1
   SceneMigrationSynchronization: 1
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
@@ -676,6 +676,7 @@ MonoBehaviour:
   attackRadius: 2
   damageAmount: 10
   attackCooldown: 1
+  chaseChildObject: {fileID: 7849919709720084516}
 --- !u!114 &5425205182781803408
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -716,7 +717,7 @@ Rigidbody:
   m_GameObject: {fileID: 5813210467224468577}
   serializedVersion: 4
   m_Mass: 1
-  m_Drag: 5
+  m_Drag: 0
   m_AngularDrag: 0.05
   m_CenterOfMass: {x: 0, y: 0, z: 0}
   m_InertiaTensor: {x: 1, y: 1, z: 1}

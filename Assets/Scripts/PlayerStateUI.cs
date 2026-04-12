@@ -5,13 +5,14 @@ using System.Collections.Generic;
 public class PlayerStateUI : MonoBehaviour
 {
     [Header("Local Player UI")]
-    public GameObject bustedUI;   // Local player's busted UI
-    public GameObject failUI;     // Local player's fail UI
+    public GameObject bustedUI;
+    public GameObject failUI;
+    public GameObject distanceWarningUI;
 
     [Header("Other Players UI Prefabs")]
-    public GameObject otherPlayerBustedPrefab; // Prefab for busted notification
-    public GameObject otherPlayerFailPrefab;   // Prefab for fail notification
-    public Transform otherPlayersUIParent;     // Container panel for other players' UI
+    public GameObject otherPlayerBustedPrefab;
+    public GameObject otherPlayerFailPrefab;
+    public Transform otherPlayersUIParent;
 
     private PlayerMovement localPlayer;
     private readonly Dictionary<PlayerMovement, (GameObject bustedUI, GameObject failUI)> otherPlayerUIs
@@ -37,10 +38,7 @@ public class PlayerStateUI : MonoBehaviour
             return;
         }
 
-        // Update local player UI
         UpdateLocalUI(localPlayer);
-
-        // Update other players UI
         UpdateOtherPlayersUI();
     }
 
@@ -63,17 +61,26 @@ public class PlayerStateUI : MonoBehaviour
 
         if (failUI != null)
             failUI.SetActive(player.IsFailed);
+
+        if (distanceWarningUI != null)
+            distanceWarningUI.SetActive(player.IsDistanceWarning);
     }
 
     void UpdateOtherPlayersUI()
     {
-        foreach (var netPlayer in FindObjectsOfType<PlayerMovement>())
+        PlayerMovement[] allPlayers = FindObjectsOfType<PlayerMovement>();
+
+        HashSet<PlayerMovement> aliveEntries = new HashSet<PlayerMovement>();
+
+        foreach (var netPlayer in allPlayers)
         {
-            if (netPlayer == localPlayer) continue; // skip local player
+            if (netPlayer == null || netPlayer == localPlayer)
+                continue;
+
+            aliveEntries.Add(netPlayer);
 
             if (!otherPlayerUIs.ContainsKey(netPlayer))
             {
-                // Create UI entries for this player
                 GameObject bustedObj = null;
                 GameObject failObj = null;
 
@@ -86,20 +93,40 @@ public class PlayerStateUI : MonoBehaviour
                 otherPlayerUIs[netPlayer] = (bustedObj, failObj);
             }
 
-            // Update visibility
             var uiPair = otherPlayerUIs[netPlayer];
+
             if (uiPair.bustedUI != null)
                 uiPair.bustedUI.SetActive(netPlayer.IsBusted);
 
             if (uiPair.failUI != null)
                 uiPair.failUI.SetActive(netPlayer.IsFailed);
         }
+
+        List<PlayerMovement> toRemove = new List<PlayerMovement>();
+
+        foreach (var entry in otherPlayerUIs)
+        {
+            if (entry.Key == null || !aliveEntries.Contains(entry.Key))
+            {
+                if (entry.Value.bustedUI != null)
+                    Destroy(entry.Value.bustedUI);
+
+                if (entry.Value.failUI != null)
+                    Destroy(entry.Value.failUI);
+
+                toRemove.Add(entry.Key);
+            }
+        }
+
+        foreach (var key in toRemove)
+            otherPlayerUIs.Remove(key);
     }
 
     void SetAllHidden()
     {
         if (bustedUI != null) bustedUI.SetActive(false);
         if (failUI != null) failUI.SetActive(false);
+        if (distanceWarningUI != null) distanceWarningUI.SetActive(false);
 
         foreach (var uiPair in otherPlayerUIs.Values)
         {

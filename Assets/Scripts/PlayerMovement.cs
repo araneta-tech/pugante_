@@ -82,6 +82,12 @@ public class PlayerMovement : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private NetworkVariable<bool> isJumpingNet = new NetworkVariable<bool>(
+        false,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
     private NetworkVariable<int> currentHealthNet = new NetworkVariable<int>(
         100,
         NetworkVariableReadPermission.Everyone,
@@ -90,6 +96,12 @@ public class PlayerMovement : NetworkBehaviour
 
     private NetworkVariable<int> lifeStateNet = new NetworkVariable<int>(
         LifeStateAlive,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+    );
+
+    private NetworkVariable<bool> distanceWarningNet = new NetworkVariable<bool>(
+        false,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server
     );
@@ -111,6 +123,7 @@ public class PlayerMovement : NetworkBehaviour
     public bool IsBusted => lifeStateNet.Value == LifeStateBusted;
     public bool IsFailed => lifeStateNet.Value == LifeStateFailed;
     public bool IsDead => lifeStateNet.Value != LifeStateAlive;
+    public bool IsDistanceWarning => distanceWarningNet.Value;
 
     public static event System.Action<PlayerMovement> OnPlayerDespawned;
 
@@ -131,6 +144,8 @@ public class PlayerMovement : NetworkBehaviour
         {
             currentHealthNet.Value = maxHealth;
             lifeStateNet.Value = LifeStateAlive;
+            distanceWarningNet.Value = false;
+            isJumpingNet.Value = false;
         }
 
         ApplyCharacterConfig(selectedCharacterIndex.Value);
@@ -147,12 +162,18 @@ public class PlayerMovement : NetworkBehaviour
             ApplyAnimationState(newValue);
         };
 
+        isJumpingNet.OnValueChanged += (oldValue, newValue) =>
+        {
+            ApplyJumpAnimationState(newValue);
+        };
+
         lifeStateNet.OnValueChanged += (oldValue, newValue) =>
         {
             ApplyLifeState(newValue);
         };
 
         ApplyLifeState(lifeStateNet.Value);
+        ApplyJumpAnimationState(isJumpingNet.Value);
 
         if (IsOwner)
             AssignCamera();
@@ -277,6 +298,7 @@ public class PlayerMovement : NetworkBehaviour
 
             animator = spawnedModel.GetComponentInChildren<Animator>();
             ApplyAnimationState(false);
+            ApplyJumpAnimationState(isJumpingNet.Value);
         }
     }
 
@@ -303,7 +325,7 @@ public class PlayerMovement : NetworkBehaviour
         if (IsBusted || IsFailed)
             return;
 
-        if (Input.GetKeyDown(KeyCode.K))
+        if (Input.GetKeyDown(KeyCode.Space))
             RequestJumpServerRpc();
 
         if (Input.GetKeyDown(KeyCode.M))
@@ -345,6 +367,7 @@ public class PlayerMovement : NetworkBehaviour
         if (!IsSpawned) return;
 
         UpdateGroundCheck();
+        ApplyJumpAnimationState();
 
         if (IsBusted || IsFailed)
             return;
@@ -359,6 +382,8 @@ public class PlayerMovement : NetworkBehaviour
 
                 rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
                 rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+
+                ApplyJumpAnimationState();
             }
         }
 
@@ -548,10 +573,16 @@ public class PlayerMovement : NetworkBehaviour
         if (serverPlayers.Count < 2)
         {
             ResetDistanceTimer();
+            SetDistanceWarning(false);
             return;
         }
 
         float maxPlayerDistance = GetMaxPlayerDistance(serverPlayers);
+
+        if (maxPlayerDistance > warningDistance)
+            SetDistanceWarning(true);
+        else
+            SetDistanceWarning(false);
 
         if (maxPlayerDistance <= warningDistance)
         {
@@ -580,6 +611,12 @@ public class PlayerMovement : NetworkBehaviour
         {
             ResetDistanceTimer();
         }
+    }
+
+    void SetDistanceWarning(bool state)
+    {
+        if (distanceWarningNet.Value != state)
+            distanceWarningNet.Value = state;
     }
 
     List<PlayerMovement> GetServerPlayers()
@@ -635,6 +672,7 @@ public class PlayerMovement : NetworkBehaviour
 
         failSequenceTriggered = true;
         ResetDistanceTimer();
+        SetDistanceWarning(false);
 
         SetAllPlayersFailed();
 
@@ -710,6 +748,26 @@ public class PlayerMovement : NetworkBehaviour
             animator.SetBool("isWalking", walking);
     }
 
+    void ApplyJumpAnimationState()
+    {
+        if (!IsServer)
+            return;
+
+        bool jumping = !isGrounded && !isTouchingGroundTag && lifeStateNet.Value == LifeStateAlive;
+
+        if (isJumpingNet.Value != jumping)
+            isJumpingNet.Value = jumping;
+
+        if (animator != null)
+            animator.SetBool("isJumping", jumping);
+    }
+
+    void ApplyJumpAnimationState(bool jumping)
+    {
+        if (animator != null)
+            animator.SetBool("isJumping", jumping);
+    }
+
     void ApplyLifeState(int state)
     {
         if (rb != null)
@@ -731,7 +789,13 @@ public class PlayerMovement : NetworkBehaviour
         }
 
         if (animator != null)
+        {
             animator.SetBool("isWalking", false);
+            animator.SetBool("isJumping", false);
+        }
+
+        if (IsServer && state != LifeStateAlive)
+            isJumpingNet.Value = false;
     }
 
     public void SelectCharacter(int index)
@@ -779,6 +843,8 @@ public class PlayerMovement : NetworkBehaviour
         }
 
         animator?.SetBool("isWalking", false);
+        animator?.SetBool("isJumping", false);
+        isJumpingNet.Value = false;
 
         Debug.Log($"[PlayerMovement] Respawned at {position}");
     }
@@ -869,6 +935,7 @@ public class PlayerMovement : NetworkBehaviour
             rb.WakeUp();
         }
 
+        isJumpingNet.Value = false;
         ApplyLifeState(LifeStateAlive);
 
         Debug.Log("[PlayerMovement] Player revived!");

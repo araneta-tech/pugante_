@@ -169,19 +169,21 @@ public class GameManager : NetworkBehaviour
     }
 
     // ---------------- GAME OVER HANDLING ----------------
-    public void CheckForGameOver()
+    public void CheckForGameOverConditions()
     {
-        bool allFailed = true;
+        if (players.Count == 0 || gameOverTriggered) return;
+
+        bool allFailedOrBusted = true;
         foreach (var p in players)
         {
-            if (p != null && !p.IsFailed)
+            if (p != null && !p.IsFailed && !p.IsBusted)
             {
-                allFailed = false;
+                allFailedOrBusted = false;
                 break;
             }
         }
 
-        if (allFailed && !gameOverTriggered)
+        if (allFailedOrBusted)
         {
             gameOverTriggered = true;
             StartCoroutine(GameOverRoutine());
