@@ -17,15 +17,23 @@ public class NetworkUI : MonoBehaviour
     [Header("Network Mode Panel (Host / Client UI)")]
     [SerializeField] private GameObject networkModePanel;
 
+    [Header("Waiting Room UI")]
+    [SerializeField] private GameObject waitingRoomPanel;
+
     [Header("Character Selection UI")]
     [SerializeField] private GameObject characterSelectPanel;
     [SerializeField] private CharacterSelectUI characterSelectUI;
+
+    [Header("Session Requirements")]
+    [SerializeField] private int requiredPlayersToStart = 2;
 
     private enum NetworkMode { None, Host, Client }
     private NetworkMode pendingMode = NetworkMode.None;
 
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
+    private bool connectionStarted = false;
+    private bool characterSelectionOpened = false;
 
     public bool IsPlaying => isPlaying;
 
@@ -41,13 +49,22 @@ public class NetworkUI : MonoBehaviour
         stopHostButton.onClick.AddListener(StopHostButtonOnClick);
 
         stopHostButton.gameObject.SetActive(false);
-        characterSelectPanel.SetActive(false);
+
+        if (networkModePanel != null)
+            networkModePanel.SetActive(true);
+
+        if (waitingRoomPanel != null)
+            waitingRoomPanel.SetActive(false);
+
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(false);
 
         hostButton.gameObject.SetActive(true);
         clientButton.gameObject.SetActive(true);
 
         if (NetworkManager.Singleton != null)
         {
+            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
             NetworkManager.Singleton.OnServerStopped += OnServerStopped;
         }
@@ -60,10 +77,15 @@ public class NetworkUI : MonoBehaviour
         if (NetworkManager.Singleton != null)
             stopHostButton.gameObject.SetActive(NetworkManager.Singleton.IsHost && Application.isPlaying);
 
-        hostButton.interactable = !hasSelectedCharacter;
-        clientButton.interactable = !hasSelectedCharacter;
+        hostButton.interactable = !connectionStarted && !hasSelectedCharacter;
+        clientButton.interactable = !connectionStarted && !hasSelectedCharacter;
 
         HandleCursorInput();
+
+        if (connectionStarted && !characterSelectionOpened && HasRequiredPlayersConnected())
+        {
+            ShowCharacterSelect();
+        }
     }
 
     private void HandleCursorInput()
@@ -99,14 +121,46 @@ public class NetworkUI : MonoBehaviour
     {
         pendingMode = NetworkMode.Host;
         DisableNetworkModePanel();
-        ShowCharacterSelect();
+        BeginConnection();
     }
 
     private void OnClientButtonClicked()
     {
         pendingMode = NetworkMode.Client;
         DisableNetworkModePanel();
-        ShowCharacterSelect();
+        BeginConnection();
+    }
+
+    private void BeginConnection()
+    {
+        if (NetworkManager.Singleton == null)
+        {
+            Debug.LogError("NetworkManager.Singleton is missing.");
+            ReturnToTitleMenu();
+            return;
+        }
+
+        connectionStarted = true;
+        hasSelectedCharacter = false;
+        isPlaying = false;
+        characterSelectionOpened = false;
+
+        if (waitingRoomPanel != null)
+            waitingRoomPanel.SetActive(true);
+
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(false);
+
+        UpdateCursorState();
+
+        if (pendingMode == NetworkMode.Host)
+        {
+            NetworkManager.Singleton.StartHost();
+        }
+        else if (pendingMode == NetworkMode.Client)
+        {
+            NetworkManager.Singleton.StartClient();
+        }
     }
 
     private void DisableNetworkModePanel()
@@ -115,30 +169,79 @@ public class NetworkUI : MonoBehaviour
             networkModePanel.SetActive(false);
     }
 
+    private bool HasRequiredPlayersConnected()
+    {
+        if (NetworkManager.Singleton == null)
+            return false;
+
+        return NetworkManager.Singleton.ConnectedClientsList != null &&
+               NetworkManager.Singleton.ConnectedClientsList.Count >= requiredPlayersToStart;
+    }
+
+    private void ShowWaitingRoom()
+    {
+        if (waitingRoomPanel != null)
+            waitingRoomPanel.SetActive(true);
+
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(false);
+
+        isPlaying = false;
+        UpdateCursorState();
+    }
+
     private void ShowCharacterSelect()
     {
-        hostButton.gameObject.SetActive(false);
-        clientButton.gameObject.SetActive(false);
+        if (characterSelectionOpened)
+            return;
+
+        characterSelectionOpened = true;
+
+        if (waitingRoomPanel != null)
+            waitingRoomPanel.SetActive(false);
 
         if (characterSelectPanel != null)
             characterSelectPanel.SetActive(true);
 
         hasSelectedCharacter = false;
         isPlaying = false;
+
         UpdateCursorState();
+    }
+
+    private void OnClientConnected(ulong clientId)
+    {
+        if (!connectionStarted)
+            return;
+
+        if (HasRequiredPlayersConnected())
+        {
+            ShowCharacterSelect();
+        }
+        else
+        {
+            ShowWaitingRoom();
+        }
     }
 
     public void OnCharacterSelected(int characterIndex)
     {
+        if (!connectionStarted || NetworkManager.Singleton == null)
+            return;
+
+        if (!HasRequiredPlayersConnected())
+        {
+            Debug.LogWarning("Character selection is locked until both players are connected.");
+            return;
+        }
+
         hasSelectedCharacter = true;
 
         if (characterSelectPanel != null)
             characterSelectPanel.SetActive(false);
 
-        if (pendingMode == NetworkMode.Host)
-            NetworkManager.Singleton.StartHost();
-        else if (pendingMode == NetworkMode.Client)
-            NetworkManager.Singleton.StartClient();
+        if (waitingRoomPanel != null)
+            waitingRoomPanel.SetActive(false);
 
         StartCoroutine(SetCharacterIndexWhenReady(characterIndex));
 
@@ -171,22 +274,21 @@ public class NetworkUI : MonoBehaviour
         if (NetworkManager.Singleton != null)
         {
             NetworkManager.Singleton.Shutdown();
-            ReturnToTitleMenu();
         }
+
+        ReturnToTitleMenu();
     }
 
     private void OnClientDisconnected(ulong clientId)
     {
-        if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
-        {
-            ReturnToTitleMenu();
-        }
+        ReturnToTitleMenu();
     }
 
     private void OnDestroy()
     {
         if (NetworkManager.Singleton != null)
         {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
             NetworkManager.Singleton.OnServerStopped -= OnServerStopped;
         }
@@ -199,7 +301,12 @@ public class NetworkUI : MonoBehaviour
 
     private void ReturnToTitleMenu()
     {
-        isPlaying = false; 
+        connectionStarted = false;
+        hasSelectedCharacter = false;
+        isPlaying = false;
+        characterSelectionOpened = false;
+        pendingMode = NetworkMode.None;
+
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
