@@ -1361,10 +1361,8 @@ MonoBehaviour:
   clientButton: {fileID: 1606825275}
   stopHostButton: {fileID: 667770576}
   networkModePanel: {fileID: 1629192571}
-  waitingRoomPanel: {fileID: 0}
   characterSelectPanel: {fileID: 587347405}
   characterSelectUI: {fileID: 239528628}
-  requiredPlayersToStart: 2
 --- !u!4 &140324055
 Transform:
   m_ObjectHideFlags: 0
@@ -10976,7 +10974,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6960e84d07fb87f47956e7a81d71c4e6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_ProtocolType: 1
+  m_ProtocolType: 0
   m_MaxPacketQueueSize: 128
   m_MaxPayloadSize: 6144
   m_HeartbeatTimeoutMS: 500
@@ -15028,7 +15026,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1212463284
 RectTransform:
   m_ObjectHideFlags: 0
