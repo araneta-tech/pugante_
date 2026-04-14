@@ -31,7 +31,7 @@ public class Key : NetworkBehaviour
         {
             audioSource = gameObject.AddComponent<AudioSource>();
         }
-    }
+    }   
 
     void Start()
     {

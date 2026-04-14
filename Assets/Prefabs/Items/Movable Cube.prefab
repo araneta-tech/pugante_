@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: 1251672618369723175}
   - component: {fileID: 5213074433366253100}
   - component: {fileID: 2312519365782784721}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Movable Cube
   m_TagString: Ground
   m_Icon: {fileID: 0}
@@ -121,10 +121,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ece84d87480f9e74ab08e9ec70c57740, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  interactionRange: 3
+  detectRange: 3
   holdDistance: 2.5
   holdHeight: 0.8
   followSpeed: 30
+  showFloatingF: 1
+  floatingUIText: {fileID: 0}
 --- !u!65 &1251672618369723175
 BoxCollider:
   m_ObjectHideFlags: 0

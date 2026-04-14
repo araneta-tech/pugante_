@@ -1,51 +1,32 @@
-using UnityEngine;
+﻿using UnityEngine;
 using Unity.Netcode;
 using System.Collections;
 
 public class VentDoor : NetworkBehaviour
 {
-    [Header("Door Settings")]
-    public float openAngle = -90f;
-    public float rotateDuration = 0.5f;
-
     [Header("Floating UI")]
     public GameObject floatingUIText;
 
     [Header("Audio Settings")]
-    public AudioClip doorToggleSound;  
-    private AudioSource audioSource;   
+    public AudioClip doorToggleSound;
+    private AudioSource audioSource;
+
+    [Header("Player Move After Interact")]
+    public Transform moveTarget;
+    public float moveDelay = 1.0f;
 
     private bool isPlayerNearby = false;
-    private bool isOpen = false;
-    private bool isAnimating = false;
-
-    private Quaternion closedRotation;
-    private Quaternion openRotation;
-    private Transform detectionTrigger;
     private PlayerMovement currentPlayer;
 
     void Awake()
     {
-        detectionTrigger = transform.Find("DetectionTrigger");
-        if (detectionTrigger == null)
-            Debug.LogWarning("DetectionTrigger child not found on Key object!");
-
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
-        {
             audioSource = gameObject.AddComponent<AudioSource>();
-        }
     }
 
     void Start()
     {
-        closedRotation = transform.rotation;
-        openRotation = Quaternion.Euler(
-            transform.eulerAngles.x,
-            transform.eulerAngles.y,
-            transform.eulerAngles.z + openAngle
-        );
-
         if (floatingUIText != null)
             floatingUIText.SetActive(false);
     }
@@ -54,9 +35,9 @@ public class VentDoor : NetworkBehaviour
     {
         if (!IsSpawned) return;
 
-        if (isPlayerNearby && Input.GetKeyDown(KeyCode.F) && !isAnimating)
+        if (isPlayerNearby && Input.GetKeyDown(KeyCode.F))
         {
-            ToggleDoorServerRpc();
+            InteractServerRpc(NetworkManager.Singleton.LocalClientId);
         }
     }
 
@@ -77,14 +58,12 @@ public class VentDoor : NetworkBehaviour
             if (!CanInteract(player))
             {
                 isPlayerNearby = true;
-
                 if (floatingUIText != null)
                     floatingUIText.SetActive(false);
                 return;
             }
 
             isPlayerNearby = true;
-
             if (floatingUIText != null)
                 floatingUIText.SetActive(true);
         }
@@ -102,58 +81,68 @@ public class VentDoor : NetworkBehaviour
     }
 
     [ServerRpc(RequireOwnership = false)]
-    void ToggleDoorServerRpc()
+    void InteractServerRpc(ulong clientId)
     {
-        ToggleDoorClientRpc();
+        PlayerMovement player = FindPlayerByClientId(clientId);
+
+        if (player == null)
+            return;
+
+        if (player.SelectedCharacterIndex != 0)
+        {
+            Debug.Log("[VentDoor] Player is not index 0, denied.");
+            return;
+        }
+
+        if (moveTarget != null)
+            StartCoroutine(MovePlayerAfterDelay(clientId, moveDelay));
+
+        InteractClientRpc();
     }
 
     [ClientRpc]
-    void ToggleDoorClientRpc()
+    void InteractClientRpc()
     {
-        if (!isAnimating)
+        PlayDoorToggleSound();
+    }
+
+    private IEnumerator MovePlayerAfterDelay(ulong clientId, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        PlayerMovement player = FindPlayerByClientId(clientId);
+
+        if (player != null && moveTarget != null)
         {
-            PlayDoorToggleSound();
-            StartCoroutine(RotateDoor());
+            Debug.Log($"Teleporting player to {moveTarget.position}");
+
+            player.SpawnAtPosition(moveTarget.position);
+            player.transform.rotation = moveTarget.rotation;
         }
     }
 
-    private IEnumerator RotateDoor()
+    private PlayerMovement FindPlayerByClientId(ulong clientId)
     {
-        isAnimating = true;
-
-        Quaternion startRot = transform.rotation;
-        Quaternion targetRot = isOpen ? closedRotation : openRotation;
-
-        float elapsed = 0f;
-
-        while (elapsed < rotateDuration)
+        foreach (var player in FindObjectsOfType<PlayerMovement>())
         {
-            transform.rotation = Quaternion.Slerp(startRot, targetRot, elapsed / rotateDuration);
-            elapsed += Time.deltaTime;
-            yield return null;
+            if (player.OwnerClientId == clientId)
+                return player;
         }
-
-        transform.rotation = targetRot;
-
-        isOpen = !isOpen;
-        isAnimating = false;
+        return null;
     }
 
     private void PlayDoorToggleSound()
     {
         if (audioSource != null && doorToggleSound != null)
         {
-            audioSource.PlayOneShot(doorToggleSound); 
+            audioSource.PlayOneShot(doorToggleSound);
         }
     }
 
+    // Only allow player with SelectedCharacterIndex == 0
     bool CanInteract(PlayerMovement player)
     {
         if (player == null) return false;
-
-        if (player.SelectedCharacterIndex == 1)  
-            return false;
-
-        return true;
+        return player.SelectedCharacterIndex == 0;
     }
 }
