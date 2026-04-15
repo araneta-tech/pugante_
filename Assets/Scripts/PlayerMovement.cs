@@ -34,6 +34,10 @@ public class PlayerMovement : NetworkBehaviour
     public float failUiHoldSeconds = 10f;
     public string menuSceneName = "HostClientMenu";
 
+    [Header("Fail VFX")]
+    public GameObject vfxExplosionPrefab;
+    public float vfxDelayBeforeFail = 1.0f;
+
     [Header("Health Settings")]
     public int maxHealth = 100;
 
@@ -665,6 +669,16 @@ public class PlayerMovement : NetworkBehaviour
         timerActive = false;
     }
 
+    IEnumerator FailSequenceWithDelay()
+    {
+        yield return new WaitForSeconds(vfxDelayBeforeFail);
+
+        SetAllPlayersFailed();
+
+        BeginTitleReturnSequenceClientRpc(failUiHoldSeconds);
+        BeginTitleReturnSequence(failUiHoldSeconds);
+    }
+
     void BeginFailSequence()
     {
         if (failSequenceTriggered)
@@ -674,14 +688,21 @@ public class PlayerMovement : NetworkBehaviour
         ResetDistanceTimer();
         SetDistanceWarning(false);
 
-        SetAllPlayersFailed();
-
         if (IsServer)
         {
-            BeginTitleReturnSequenceClientRpc(failUiHoldSeconds);
+            foreach (var player in players)
+            {
+                if (player != null)
+                {
+                    var vfx = player.GetComponent<FailExplosionVFX>();
+                    if (vfx != null)
+                    {
+                        vfx.PlayExplosion();
+                    }
+                }
+            }
+            StartCoroutine(FailSequenceWithDelay());
         }
-
-        BeginTitleReturnSequence(failUiHoldSeconds);
     }
 
     void SetAllPlayersFailed()
