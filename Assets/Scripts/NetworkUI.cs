@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
+using System.Net;
+using TMPro;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class NetworkUI : MonoBehaviour
 {
@@ -15,25 +16,30 @@ public class NetworkUI : MonoBehaviour
     [SerializeField] private Button clientButton;
     [SerializeField] private Button stopHostButton;
 
-    [Header("Network Mode Panel (Host / Client UI)")]
-    [SerializeField] private GameObject networkModePanel;
+    [Header("Host & Client Panel")]
+    [SerializeField] private GameObject hostClientPanel;
 
     [Header("Character Selection UI")]
     [SerializeField] private GameObject characterSelectPanel;
     [SerializeField] private CharacterSelectUI characterSelectUI;
 
     [Header("Client Connection UI")]
-    [SerializeField] private InputField ipInputField;
-    [SerializeField] private Button confirmIPButton; // NEW
+    [SerializeField] private GameObject ipInputPanel;
+    [SerializeField] private TMP_InputField ipInputField;
+    [SerializeField] private Button confirmIPButton;
     [SerializeField] private Text connectionStatusText;
 
-    private enum NetworkMode { None, Host, Client }
-    private NetworkMode pendingMode = NetworkMode.None;
+    private enum NetworkMode
+    {
+        None,
+        Host,
+        Client
+    }
 
+    private NetworkMode pendingMode = NetworkMode.None;
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
-
-    private string confirmedIP = ""; // NEW
+    private string confirmedIP = "";
 
     public bool IsPlaying => isPlaying;
 
@@ -44,23 +50,40 @@ public class NetworkUI : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
         Instance = this;
     }
 
     private void Start()
     {
-        hostButton.onClick.AddListener(OnHostButtonClicked);
-        clientButton.onClick.AddListener(OnClientButtonClicked);
-        stopHostButton.onClick.AddListener(StopHostButtonOnClick);
-        confirmIPButton.onClick.AddListener(OnConfirmIPClicked); // NEW
+        if (hostButton != null)
+            hostButton.onClick.AddListener(OnHostButtonClicked);
 
-        stopHostButton.gameObject.SetActive(false);
-        characterSelectPanel.SetActive(false);
+        if (clientButton != null)
+            clientButton.onClick.AddListener(OnClientButtonClicked);
 
-        hostButton.gameObject.SetActive(true);
-        clientButton.gameObject.SetActive(true);
+        if (stopHostButton != null)
+            stopHostButton.onClick.AddListener(StopHostButtonOnClick);
 
-        confirmIPButton.gameObject.SetActive(false); // hidden initially
+        if (confirmIPButton != null)
+            confirmIPButton.onClick.AddListener(OnConfirmIPClicked);
+
+        if (stopHostButton != null)
+            stopHostButton.gameObject.SetActive(false);
+
+        if (characterSelectPanel != null)
+            characterSelectPanel.SetActive(false);
+
+        if (hostClientPanel != null)
+            hostClientPanel.SetActive(true);
+
+        if (hostButton != null)
+            hostButton.gameObject.SetActive(true);
+
+        if (clientButton != null)
+            clientButton.gameObject.SetActive(true);
+
+        HideIPInputPanel();
 
         if (NetworkManager.Singleton != null)
         {
@@ -73,11 +96,14 @@ public class NetworkUI : MonoBehaviour
 
     private void Update()
     {
-        if (NetworkManager.Singleton != null)
+        if (NetworkManager.Singleton != null && stopHostButton != null)
             stopHostButton.gameObject.SetActive(NetworkManager.Singleton.IsHost && Application.isPlaying);
 
-        hostButton.interactable = !hasSelectedCharacter;
-        clientButton.interactable = !hasSelectedCharacter;
+        if (hostButton != null)
+            hostButton.interactable = !hasSelectedCharacter;
+
+        if (clientButton != null)
+            clientButton.interactable = !hasSelectedCharacter;
 
         HandleCursorInput();
     }
@@ -90,11 +116,10 @@ public class NetworkUI : MonoBehaviour
         {
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
+            return;
         }
-        else
-        {
-            UpdateCursorState();
-        }
+
+        UpdateCursorState();
     }
 
     private void UpdateCursorState()
@@ -114,53 +139,126 @@ public class NetworkUI : MonoBehaviour
     private void OnHostButtonClicked()
     {
         pendingMode = NetworkMode.Host;
-        DisableNetworkModePanel();
+        HideHostClientPanel();
+        HideIPInputPanel();
         ShowCharacterSelect();
     }
 
     private void OnClientButtonClicked()
     {
         pendingMode = NetworkMode.Client;
-        DisableNetworkModePanel();
-
-        // SHOW IP INPUT FIRST
-        confirmIPButton.gameObject.SetActive(true);
-        connectionStatusText.text = "Enter Host IP and Confirm";
+        HideHostClientPanel();
+        ShowIPInputPanel();
     }
 
-    private void OnConfirmIPClicked() // NEW
+    private void OnConfirmIPClicked()
     {
-        if (string.IsNullOrEmpty(ipInputField.text))
+        if (ipInputField == null)
         {
-            connectionStatusText.text = "Please enter a valid IP.";
+            if (connectionStatusText != null)
+                connectionStatusText.text = "IP input field is missing.";
             return;
         }
 
-        confirmedIP = ipInputField.text;
-        connectionStatusText.text = $"IP Confirmed: {confirmedIP}";
+        string rawIP = ipInputField.text.Trim();
 
-        confirmIPButton.gameObject.SetActive(false);
+        if (string.IsNullOrWhiteSpace(rawIP))
+        {
+            if (connectionStatusText != null)
+                connectionStatusText.text = "Please enter a valid IP.";
+            CancelIPInput();
+            return;
+        }
 
-        // Proceed to character select AFTER confirming IP
+        if (!IsValidIPAddress(rawIP))
+        {
+            if (connectionStatusText != null)
+                connectionStatusText.text = "Invalid IP address. Input canceled.";
+            CancelIPInput();
+            return;
+        }
+
+        confirmedIP = rawIP;
+
+        if (connectionStatusText != null)
+            connectionStatusText.text = $"IP Confirmed: {confirmedIP}";
+
+        HideIPInputPanel();
         ShowCharacterSelect();
     }
 
-    private void DisableNetworkModePanel()
+    private bool IsValidIPAddress(string ip)
     {
-        if (networkModePanel != null)
-            networkModePanel.SetActive(false);
+        return IPAddress.TryParse(ip, out _);
+    }
+
+    private void CancelIPInput()
+    {
+        confirmedIP = "";
+
+        if (ipInputField != null)
+            ipInputField.text = "";
+
+        HideIPInputPanel();
+        ShowHostClientPanel();
+    }
+
+    private void ShowIPInputPanel()
+    {
+        if (ipInputPanel != null)
+            ipInputPanel.SetActive(true);
+
+        if (confirmIPButton != null)
+            confirmIPButton.gameObject.SetActive(true);
+
+        if (connectionStatusText != null)
+            connectionStatusText.text = "Enter Host IP and Confirm";
+
+        if (ipInputField != null)
+        {
+            ipInputField.text = "";
+            ipInputField.ActivateInputField();
+        }
+    }
+
+    private void HideIPInputPanel()
+    {
+        if (ipInputPanel != null)
+            ipInputPanel.SetActive(false);
+
+        if (confirmIPButton != null)
+            confirmIPButton.gameObject.SetActive(false);
+    }
+
+    private void HideHostClientPanel()
+    {
+        if (hostClientPanel != null)
+            hostClientPanel.SetActive(false);
+    }
+
+    private void ShowHostClientPanel()
+    {
+        if (hostClientPanel != null)
+            hostClientPanel.SetActive(true);
     }
 
     private void ShowCharacterSelect()
     {
-        hostButton.gameObject.SetActive(false);
-        clientButton.gameObject.SetActive(false);
+        if (hostClientPanel != null)
+            hostClientPanel.SetActive(false);
+
+        if (hostButton != null)
+            hostButton.gameObject.SetActive(false);
+
+        if (clientButton != null)
+            clientButton.gameObject.SetActive(false);
 
         if (characterSelectPanel != null)
             characterSelectPanel.SetActive(true);
 
         hasSelectedCharacter = false;
         isPlaying = false;
+
         UpdateCursorState();
     }
 
@@ -173,7 +271,8 @@ public class NetworkUI : MonoBehaviour
 
         if (pendingMode == NetworkMode.Host)
         {
-            NetworkManager.Singleton.StartHost();
+            if (NetworkManager.Singleton != null)
+                NetworkManager.Singleton.StartHost();
         }
         else if (pendingMode == NetworkMode.Client)
         {
@@ -188,15 +287,40 @@ public class NetworkUI : MonoBehaviour
 
     private IEnumerator TryConnectClient(string ip, ushort port, float timeoutSeconds)
     {
+        if (NetworkManager.Singleton == null)
+        {
+            if (connectionStatusText != null)
+                connectionStatusText.text = "NetworkManager is missing.";
+
+            yield break;
+        }
+
+        UnityTransport transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
+        if (transport == null)
+        {
+            Debug.LogError("[NetworkUI] UnityTransport component not found.");
+            if (connectionStatusText != null)
+                connectionStatusText.text = "Transport is missing.";
+            yield break;
+        }
+
+        if (!IsValidIPAddress(ip))
+        {
+            if (connectionStatusText != null)
+                connectionStatusText.text = "Invalid IP address. Input canceled.";
+            CancelIPInput();
+            yield break;
+        }
+
         float startTime = Time.time;
         bool connected = false;
 
-        var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
         transport.SetConnectionData(ip, port);
 
         while (!connected && Time.time - startTime < timeoutSeconds)
         {
             Debug.Log($"[NetworkUI] Attempting to connect to {ip}:{port}...");
+
             if (connectionStatusText != null)
                 connectionStatusText.text = $"Connecting to {ip}:{port}...";
 
@@ -210,12 +334,14 @@ public class NetworkUI : MonoBehaviour
                     connected = true;
                     break;
                 }
+
                 yield return null;
             }
 
             if (!connected)
             {
                 Debug.Log("[NetworkUI] Connection attempt failed, retrying...");
+
                 if (connectionStatusText != null)
                     connectionStatusText.text = "Connection failed, retrying...";
 
@@ -227,15 +353,19 @@ public class NetworkUI : MonoBehaviour
         if (!connected)
         {
             Debug.LogError("[NetworkUI] Could not connect to host after retries.");
+
             if (connectionStatusText != null)
                 connectionStatusText.text = "Failed to connect after retries.";
 
+            CancelIPInput();
             ReturnToTitleMenu();
         }
         else
         {
             if (connectionStatusText != null)
                 connectionStatusText.text = "Connected!";
+
+            HideIPInputPanel();
         }
     }
 
@@ -248,6 +378,7 @@ public class NetworkUI : MonoBehaviour
                NetworkManager.Singleton.LocalClient.PlayerObject == null)
         {
             timer += Time.deltaTime;
+
             if (timer > 10f)
             {
                 Debug.LogError("PlayerObject not found!");
@@ -257,7 +388,7 @@ public class NetworkUI : MonoBehaviour
             yield return null;
         }
 
-        var playerMovement = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<PlayerMovement>();
+        PlayerMovement playerMovement = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<PlayerMovement>();
 
         if (playerMovement != null)
         {
@@ -302,6 +433,10 @@ public class NetworkUI : MonoBehaviour
     private void ReturnToTitleMenu()
     {
         isPlaying = false;
+
+        HideIPInputPanel();
+        ShowHostClientPanel();
+
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
 
