@@ -436,6 +436,10 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
         type: 3}
       insertIndex: -1
+      addedObject: {fileID: 621194899657043938}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
+        type: 3}
+      insertIndex: -1
       addedObject: {fileID: 88952966652195418}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
         type: 3}
@@ -535,6 +539,9 @@ MonoBehaviour:
   outOfRangeDuration: 5
   failUiHoldSeconds: 5
   menuSceneName: HostClientMenu
+  vfxExplosionPrefab: {fileID: 4797666811915969247, guid: dcba39a6e3f07914bbda020ffb696f72,
+    type: 3}
+  vfxDelayBeforeFail: 1
   maxHealth: 50
   reviveRange: 2
   reviveHoldSeconds: 5
@@ -547,6 +554,27 @@ MonoBehaviour:
   mouseSensitivity: 1
   cameraDistance: 2
   cameraHeight: 2
+--- !u!114 &621194899657043938
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8880608386803156541}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c731b1d20182e14ab95fc08f70ff9fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  explosionPrefab: {fileID: 4797666811915969247, guid: dcba39a6e3f07914bbda020ffb696f72,
+    type: 3}
+  boneName: collar.001
+  localOffset: {x: 0, y: 2, z: 0}
+  explosionSound: {fileID: 8300000, guid: 736cbfba56d98f043b450b2530634e72, type: 3}
+  volume: 1
+  shakeAmplitude: 2
+  shakeFrequency: 2
+  shakeDuration: 0.5
 --- !u!136 &88952966652195418
 CapsuleCollider:
   m_ObjectHideFlags: 0
