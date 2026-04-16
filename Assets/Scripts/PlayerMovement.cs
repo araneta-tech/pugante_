@@ -58,6 +58,26 @@ public class PlayerMovement : NetworkBehaviour
     public float cameraDistance = 4f;
     public float cameraHeight = 2f;
 
+    [Header("Footstep Audio")]
+    public AudioClip[] footstepClipsIndex0;
+    public AudioClip[] footstepClipsIndex1;
+
+    public float footstepInterval = 0.5f;
+    public float footstepVolume = 1f;
+
+    [Header("Distance Warning Audio")]
+    public AudioClip distanceLoopClip;
+
+    [Tooltip("Minimum volume when warning starts")]
+    public float minVolume = 0.05f;
+
+    [Tooltip("Maximum volume at max distance")]
+    public float maxVolume = 1f;
+
+    [Tooltip("Optional pitch scaling")]
+    public float minPitch = 0.8f;
+    public float maxPitch = 1.3f;
+
     private float yaw;
     private float pitch = 15f;
 
@@ -65,6 +85,8 @@ public class PlayerMovement : NetworkBehaviour
     private static bool timerActive = false;
     private static bool failSequenceTriggered = false;
     private static bool titleReturnSequenceTriggered = false;
+    private float smoothedDistance = 0f;
+    private AudioSource distanceAudioSource;
 
     private static readonly List<PlayerMovement> players = new List<PlayerMovement>();
 
@@ -75,6 +97,8 @@ public class PlayerMovement : NetworkBehaviour
     private bool isGrounded;
     private bool isTouchingGroundTag;
     private Vector3 lastInput;
+    private AudioSource footstepSource;
+    private float footstepTimer = 0f;
 
     private bool jumpRequested = false;
 
@@ -110,6 +134,12 @@ public class PlayerMovement : NetworkBehaviour
         NetworkVariableWritePermission.Server
     );
 
+    private NetworkVariable<float> distanceNormalizedNet = new NetworkVariable<float>(
+    0f,
+    NetworkVariableReadPermission.Everyone,
+    NetworkVariableWritePermission.Server
+    );
+
     private float speed;
     private float jumpForce;
 
@@ -128,6 +158,7 @@ public class PlayerMovement : NetworkBehaviour
     public bool IsFailed => lifeStateNet.Value == LifeStateFailed;
     public bool IsDead => lifeStateNet.Value != LifeStateAlive;
     public bool IsDistanceWarning => distanceWarningNet.Value;
+    public float DistanceNormalized => distanceNormalizedNet.Value;
 
     public static event System.Action<PlayerMovement> OnPlayerDespawned;
 
@@ -200,6 +231,25 @@ public class PlayerMovement : NetworkBehaviour
             }
 
             SetSpawnPositionClientRpc(spawnPos);
+        }
+
+        if (footstepSource == null)
+        {
+            footstepSource = gameObject.AddComponent<AudioSource>();
+            footstepSource.playOnAwake = false;
+            footstepSource.loop = false;
+            footstepSource.spatialBlend = 1f; 
+            footstepSource.volume = footstepVolume;
+        }
+
+        if (distanceLoopClip != null)
+        {
+            distanceAudioSource = gameObject.AddComponent<AudioSource>();
+            distanceAudioSource.clip = distanceLoopClip;
+            distanceAudioSource.loop = true;
+            distanceAudioSource.playOnAwake = false;
+            distanceAudioSource.volume = 0f;
+            distanceAudioSource.spatialBlend = 0f; 
         }
     }
 
@@ -321,7 +371,12 @@ public class PlayerMovement : NetworkBehaviour
 
     void Update()
     {
-        if (!IsOwner || !IsSpawned) return;
+        if (!IsSpawned) return;
+
+        HandleDistanceAudio();
+
+        if (!IsOwner)
+            return;
 
         HandleCameraRotation();
         HandleCameraZoom();
@@ -336,6 +391,103 @@ public class PlayerMovement : NetworkBehaviour
             DebugKillServerRpc();
 
         HandleReviveInput();
+    }
+
+    void HandleFootstepsServer()
+    {
+        if (!IsServer) return;
+
+        bool isMoving = lastInput.magnitude > 0.1f;
+        bool grounded = isGrounded || isTouchingGroundTag;
+
+        if (!isMoving || !grounded || IsBusted || IsFailed)
+        {
+            footstepTimer = 0f;
+            return;
+        }
+
+        footstepTimer += Time.fixedDeltaTime;
+
+        if (footstepTimer >= footstepInterval)
+        {
+            footstepTimer = 0f;
+            PlayFootstepClientRpc(transform.position, selectedCharacterIndex.Value);
+        }
+    }
+
+    [ClientRpc]
+    void PlayFootstepClientRpc(Vector3 position, int characterIndex)
+    {
+        if (footstepSource == null)
+            return;
+
+        AudioClip clipToPlay = GetFootstepClip(characterIndex);
+        if (clipToPlay == null)
+            return;
+
+        footstepSource.transform.position = position;
+        footstepSource.PlayOneShot(clipToPlay, footstepVolume);
+    }
+
+    AudioClip GetFootstepClip(int index)
+    {
+        AudioClip[] clips = null;
+
+        if (index == 0)
+            clips = footstepClipsIndex0;
+        else if (index == 1)
+            clips = footstepClipsIndex1;
+
+        if (clips == null || clips.Length == 0)
+            return null;
+
+        return clips[Random.Range(0, clips.Length)];
+    }
+
+    void HandleDistanceAudio()
+    {
+        if (distanceAudioSource == null || distanceLoopClip == null)
+            return;
+
+        if (failSequenceTriggered || IsFailed)
+        {
+            if (distanceAudioSource.isPlaying)
+                distanceAudioSource.Stop();
+
+            return;
+        }
+
+        float target = distanceNormalizedNet.Value;
+        smoothedDistance = Mathf.Lerp(smoothedDistance, target, Time.deltaTime * 5f);
+
+        if (!distanceWarningNet.Value)
+        {
+            distanceAudioSource.volume = Mathf.Lerp(distanceAudioSource.volume, 0f, Time.deltaTime * 5f);
+
+            if (distanceAudioSource.volume <= 0.01f && distanceAudioSource.isPlaying)
+                distanceAudioSource.Stop();
+
+            return;
+        }
+
+        if (!distanceAudioSource.isPlaying)
+            distanceAudioSource.Play();
+
+        float targetVolume = Mathf.Lerp(minVolume, maxVolume, smoothedDistance);
+        float targetPitch = Mathf.Lerp(minPitch, maxPitch, smoothedDistance);
+
+        distanceAudioSource.volume = Mathf.Lerp(distanceAudioSource.volume, targetVolume, Time.deltaTime * 5f);
+        distanceAudioSource.pitch = targetPitch;
+    }
+
+    [ClientRpc]
+    void StopDistanceAudioClientRpc()
+    {
+        if (distanceAudioSource != null)
+        {
+            distanceAudioSource.Stop();
+            distanceAudioSource.volume = 0f;
+        }
     }
 
     void HandleCameraRotation()
@@ -555,6 +707,8 @@ public class PlayerMovement : NetworkBehaviour
         if (isWalkingNet.Value != walking)
             isWalkingNet.Value = walking;
 
+        HandleFootstepsServer();
+
         CheckPlayersDistance();
     }
 
@@ -578,10 +732,14 @@ public class PlayerMovement : NetworkBehaviour
         {
             ResetDistanceTimer();
             SetDistanceWarning(false);
+            distanceNormalizedNet.Value = 0f;
             return;
         }
 
         float maxPlayerDistance = GetMaxPlayerDistance(serverPlayers);
+
+        float normalized = Mathf.InverseLerp(warningDistance, limitDistance, maxPlayerDistance);
+        distanceNormalizedNet.Value = normalized;
 
         if (maxPlayerDistance > warningDistance)
             SetDistanceWarning(true);
@@ -607,6 +765,7 @@ public class PlayerMovement : NetworkBehaviour
 
                 if (outOfRangeTimer >= outOfRangeDuration)
                 {
+                    StopDistanceAudioClientRpc();
                     BeginFailSequence();
                 }
             }
@@ -687,6 +846,8 @@ public class PlayerMovement : NetworkBehaviour
         failSequenceTriggered = true;
         ResetDistanceTimer();
         SetDistanceWarning(false);
+
+        StopDistanceAudioClientRpc(); 
 
         if (IsServer)
         {

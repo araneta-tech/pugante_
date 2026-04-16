@@ -536,7 +536,7 @@ MonoBehaviour:
   defaultCharacterIndex: 0
   warningDistance: 15
   limitDistance: 20
-  outOfRangeDuration: 5
+  outOfRangeDuration: 2
   failUiHoldSeconds: 5
   menuSceneName: HostClientMenu
   vfxExplosionPrefab: {fileID: 4797666811915969247, guid: dcba39a6e3f07914bbda020ffb696f72,
@@ -554,6 +554,17 @@ MonoBehaviour:
   mouseSensitivity: 1
   cameraDistance: 2
   cameraHeight: 2
+  footstepClipsIndex0:
+  - {fileID: 8300000, guid: 039e73af825e8d041b60b354d76beb1e, type: 3}
+  footstepClipsIndex1:
+  - {fileID: 8300000, guid: 28fe47be573d9824ba5d134cc9b43e59, type: 3}
+  footstepInterval: 0.5
+  footstepVolume: 0.5
+  distanceLoopClip: {fileID: 8300000, guid: 4bdb3c780e4a4b74fada8ba753c479a3, type: 3}
+  minVolume: 0.05
+  maxVolume: 1
+  minPitch: 0.8
+  maxPitch: 1.3
 --- !u!114 &621194899657043938
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -569,7 +580,7 @@ MonoBehaviour:
   explosionPrefab: {fileID: 4797666811915969247, guid: dcba39a6e3f07914bbda020ffb696f72,
     type: 3}
   boneName: collar.001
-  localOffset: {x: 0, y: 2, z: 0}
+  localOffset: {x: 0, y: 1.6, z: 0}
   explosionSound: {fileID: 8300000, guid: 736cbfba56d98f043b450b2530634e72, type: 3}
   volume: 1
   shakeAmplitude: 2
@@ -675,7 +686,7 @@ AudioSource:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8880608386803156541}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}

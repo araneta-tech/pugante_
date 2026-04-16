@@ -27,8 +27,8 @@ public class EnemyPatrolAI : NetworkBehaviour
 
     [Header("Attack")]
     public float attackRadius = 2f;
-    public int damageAmount = 10;        // damage per hit
-    public float attackCooldown = 1.0f;  // cooldown between hits
+    public int damageAmount = 10;        
+    public float attackCooldown = 1.0f;  
     private float attackTimer;
 
     private Transform targetPlayer;
@@ -37,7 +37,7 @@ public class EnemyPatrolAI : NetworkBehaviour
     private NetworkVariable<int> netState = new NetworkVariable<int>();
 
     [Header("Chase Indicator Child")]
-    public GameObject chaseChildObject; // assign the inactive child in Inspector
+    public GameObject chaseChildObject; 
 
     void Start()
     {
@@ -45,7 +45,6 @@ public class EnemyPatrolAI : NetworkBehaviour
         animator = GetComponentInChildren<Animator>();
         agent.speed = patrolSpeed;
 
-        // Ensure agent starts at its current transform position
         agent.Warp(transform.position);
 
         if (waypointHolder != null)
@@ -59,7 +58,6 @@ public class EnemyPatrolAI : NetworkBehaviour
                 agent.SetDestination(waypoints[currentIndex].position);
         }
 
-        // Ensure chase child starts disabled
         if (chaseChildObject != null)
             chaseChildObject.SetActive(false);
     }
@@ -80,10 +78,9 @@ public class EnemyPatrolAI : NetworkBehaviour
         }
 
         SyncClientVisuals();
-        UpdateChaseChildObject(); // NEW: toggle child object
+        UpdateChaseChildObject(); 
     }
 
-    // ---------------- SERVER AI ----------------
     void RunServerAI()
     {
         switch ((AIState)netState.Value)
@@ -156,7 +153,7 @@ public class EnemyPatrolAI : NetworkBehaviour
         if (targetPlayer == null) { SetState(AIState.Patrol); return; }
 
         var health = targetPlayer.GetComponent<PlayerMovement>();
-        if (health != null && health.IsDead)   // if player is dead, reset
+        if (health != null && health.IsDead)   
         {
             targetPlayer = null;
             animator.SetBool("isAttacking", false);
@@ -194,15 +191,13 @@ public class EnemyPatrolAI : NetworkBehaviour
         }
     }
 
-    // ---------------- DAMAGE ----------------
     void ApplyDamage(GameObject playerObj)
     {
-        var health = playerObj.GetComponent<PlayerMovement>(); // assumes PlayerMovement has health logic
+        var health = playerObj.GetComponent<PlayerMovement>(); 
         if (health != null)
         {
             health.TakeDamage(damageAmount);
 
-            // if player dies after damage, reset AI
             if (health.IsDead)
             {
                 targetPlayer = null;
@@ -219,7 +214,6 @@ public class EnemyPatrolAI : NetworkBehaviour
         animator.SetBool("isAttacking", attacking);
     }
 
-    // ---------------- NEW FUNCTION ----------------
     void UpdateChaseChildObject()
     {
         if (chaseChildObject != null)

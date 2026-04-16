@@ -8,7 +8,7 @@ public class FailExplosionVFX : NetworkBehaviour
     public GameObject explosionPrefab;
 
     [Header("Attach Settings")]
-    public string boneName = "Spine"; // change to Head, Hips, etc.
+    public string boneName = "Spine"; 
     public Vector3 localOffset;
 
     [Header("Audio")]
@@ -20,7 +20,6 @@ public class FailExplosionVFX : NetworkBehaviour
     public float shakeFrequency = 2f;
     public float shakeDuration = 0.5f;
 
-    // 🔥 PUBLIC CALL
     public void PlayExplosion()
     {
         if (IsServer)
@@ -39,22 +38,18 @@ public class FailExplosionVFX : NetworkBehaviour
 
         Vector3 spawnPos = attachPoint.position + attachPoint.TransformDirection(localOffset);
 
-        // 🔥 Spawn VFX
         if (explosionPrefab != null)
         {
             GameObject vfx = Instantiate(explosionPrefab, spawnPos, Quaternion.identity);
 
-            // Optional cleanup
             Destroy(vfx, 5f);
         }
 
-        // 🔊 Play 3D sound
         if (explosionSound != null)
         {
             AudioSource.PlayClipAtPoint(explosionSound, spawnPos, volume);
         }
 
-        // 📷 Camera shake (local player only)
         if (IsOwner)
         {
             DoCameraShake();

@@ -139,7 +139,6 @@ public class VentDoor : NetworkBehaviour
         }
     }
 
-    // Only allow player with SelectedCharacterIndex == 0
     bool CanInteract(PlayerMovement player)
     {
         if (player == null) return false;
