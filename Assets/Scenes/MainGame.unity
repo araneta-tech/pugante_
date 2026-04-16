@@ -1754,8 +1754,8 @@ MonoBehaviour:
 
     Muscle'
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
-  m_sharedMaterial: {fileID: 2140032, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -7324,8 +7324,8 @@ MonoBehaviour:
 
     Thin'
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
-  m_sharedMaterial: {fileID: 2140032, guid: dc36b3fdc14f47ebb36fd484a67e268a, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -15384,7 +15384,7 @@ MonoBehaviour:
   ConnectionData:
     Address: 127.0.0.1
     Port: 7777
-    ServerListenAddress: 127.0.0.1
+    ServerListenAddress: 0.0.0.0
   DebugSimulator:
     PacketDelayMS: 0
     PacketJitterMS: 0
@@ -38353,36 +38353,6 @@ PrefabInstance:
       propertyPath: waypointHolder
       value: 
       objectReference: {fileID: 1331110029}
-    - target: {fileID: 4349912414850396188, guid: 58229273a2841bd418b7ca1180acdffe,
-        type: 3}
-      propertyPath: m_Color.b
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4349912414850396188, guid: 58229273a2841bd418b7ca1180acdffe,
-        type: 3}
-      propertyPath: m_Color.g
-      value: 0.7341472
-      objectReference: {fileID: 0}
-    - target: {fileID: 4349912414850396188, guid: 58229273a2841bd418b7ca1180acdffe,
-        type: 3}
-      propertyPath: m_Color.r
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4349912414850396188, guid: 58229273a2841bd418b7ca1180acdffe,
-        type: 3}
-      propertyPath: m_Intensity
-      value: 50
-      objectReference: {fileID: 0}
-    - target: {fileID: 4349912414850396188, guid: 58229273a2841bd418b7ca1180acdffe,
-        type: 3}
-      propertyPath: m_ShadowRadius
-      value: 0.28
-      objectReference: {fileID: 0}
-    - target: {fileID: 4349912414850396188, guid: 58229273a2841bd418b7ca1180acdffe,
-        type: 3}
-      propertyPath: m_InnerSpotAngle
-      value: 76.710045
-      objectReference: {fileID: 0}
     - target: {fileID: 5813210467224468577, guid: 58229273a2841bd418b7ca1180acdffe,
         type: 3}
       propertyPath: m_Name
