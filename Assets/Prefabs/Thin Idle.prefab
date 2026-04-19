@@ -11,17 +11,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 31.626348
+      value: -267.04227
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -2.21
+      value: -1.1168432
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 13.163971
+      value: -5.2431307
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: b83a13cb3d061a9459c5afcee50c7d5d,
         type: 3}
@@ -910,8 +910,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 0
-  InScenePlacedSourceGlobalObjectIdHash: 0
+  GlobalObjectIdHash: 2684486470
+  InScenePlacedSourceGlobalObjectIdHash: 4289956052
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
   ActiveSceneSynchronization: 0
