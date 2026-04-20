@@ -528,11 +528,11 @@ MonoBehaviour:
   - prefab: {fileID: 7890321048301539333, guid: 5b45bcfed477ab842961a95760de10a0,
       type: 3}
     speed: 15
-    jumpForce: 9
+    jumpForce: 7
   - prefab: {fileID: 2548943536178980085, guid: b2b8b4137502e9042ae5b6b52905cf32,
       type: 3}
     speed: 10
-    jumpForce: 7
+    jumpForce: 5
   defaultCharacterIndex: 0
   warningDistance: 15
   limitDistance: 20
@@ -550,6 +550,9 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 8
+  jumpBufferTime: 0.15
+  coyoteTime: 0.12
+  jumpCooldown: 0.05
   collectRange: 2
   mouseSensitivity: 1
   cameraDistance: 2
