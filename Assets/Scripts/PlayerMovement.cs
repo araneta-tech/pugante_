@@ -50,6 +50,11 @@ public class PlayerMovement : NetworkBehaviour
     public float groundRadius = 0.3f;
     public LayerMask groundLayer;
 
+    [Header("Jump Settings")]
+    public float jumpBufferTime = 0.15f;
+    public float coyoteTime = 0.12f;
+    public float jumpCooldown = 0.05f;
+
     [Header("Item Collection")]
     public float collectRange = 2f;
 
@@ -101,6 +106,9 @@ public class PlayerMovement : NetworkBehaviour
     private float footstepTimer = 0f;
 
     private bool jumpRequested = false;
+    private float jumpBufferTimer = 0f;
+    private float coyoteTimer = 0f;
+    private float jumpCooldownTimer = 0f;
 
     private NetworkVariable<int> selectedCharacterIndex = new NetworkVariable<int>();
 
@@ -135,9 +143,9 @@ public class PlayerMovement : NetworkBehaviour
     );
 
     private NetworkVariable<float> distanceNormalizedNet = new NetworkVariable<float>(
-    0f,
-    NetworkVariableReadPermission.Everyone,
-    NetworkVariableWritePermission.Server
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
     );
 
     private float speed;
@@ -181,6 +189,7 @@ public class PlayerMovement : NetworkBehaviour
             lifeStateNet.Value = LifeStateAlive;
             distanceWarningNet.Value = false;
             isJumpingNet.Value = false;
+            ResetJumpState();
         }
 
         ApplyCharacterConfig(selectedCharacterIndex.Value);
@@ -238,7 +247,7 @@ public class PlayerMovement : NetworkBehaviour
             footstepSource = gameObject.AddComponent<AudioSource>();
             footstepSource.playOnAwake = false;
             footstepSource.loop = false;
-            footstepSource.spatialBlend = 1f; 
+            footstepSource.spatialBlend = 1f;
             footstepSource.volume = footstepVolume;
         }
 
@@ -249,7 +258,7 @@ public class PlayerMovement : NetworkBehaviour
             distanceAudioSource.loop = true;
             distanceAudioSource.playOnAwake = false;
             distanceAudioSource.volume = 0f;
-            distanceAudioSource.spatialBlend = 0f; 
+            distanceAudioSource.spatialBlend = 0f;
         }
     }
 
@@ -523,6 +532,7 @@ public class PlayerMovement : NetworkBehaviour
         if (!IsSpawned) return;
 
         UpdateGroundCheck();
+        UpdateJumpTimers();
         ApplyJumpAnimationState();
 
         if (IsBusted || IsFailed)
@@ -530,17 +540,8 @@ public class PlayerMovement : NetworkBehaviour
 
         if (IsServer)
         {
+            TryHandleServerJump();
             ServerMovement();
-
-            if (jumpRequested && (isGrounded || isTouchingGroundTag))
-            {
-                jumpRequested = false;
-
-                rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
-                rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-
-                ApplyJumpAnimationState();
-            }
         }
 
         if (IsOwner)
@@ -556,6 +557,66 @@ public class PlayerMovement : NetworkBehaviour
             groundRadius,
             groundLayer
         );
+    }
+
+    bool IsGroundedForJump()
+    {
+        return isGrounded || isTouchingGroundTag;
+    }
+
+    void UpdateJumpTimers()
+    {
+        if (IsGroundedForJump())
+            coyoteTimer = coyoteTime;
+        else
+            coyoteTimer -= Time.fixedDeltaTime;
+
+        if (jumpBufferTimer > 0f)
+            jumpBufferTimer -= Time.fixedDeltaTime;
+
+        if (jumpCooldownTimer > 0f)
+            jumpCooldownTimer -= Time.fixedDeltaTime;
+
+        if (coyoteTimer < 0f)
+            coyoteTimer = 0f;
+
+        if (jumpBufferTimer < 0f)
+            jumpBufferTimer = 0f;
+
+        if (jumpCooldownTimer < 0f)
+            jumpCooldownTimer = 0f;
+
+        if (jumpBufferTimer <= 0f)
+            jumpRequested = false;
+    }
+
+    void TryHandleServerJump()
+    {
+        if (!jumpRequested || rb == null)
+            return;
+
+        if (jumpBufferTimer <= 0f)
+        {
+            jumpRequested = false;
+            return;
+        }
+
+        if (jumpCooldownTimer > 0f)
+            return;
+
+        if (!IsGroundedForJump() && coyoteTimer <= 0f)
+            return;
+
+        jumpRequested = false;
+        jumpBufferTimer = 0f;
+        coyoteTimer = 0f;
+        jumpCooldownTimer = jumpCooldown;
+
+        rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+
+        isJumpingNet.Value = true;
+        ApplyJumpAnimationState(true);
     }
 
     void HandleInput()
@@ -638,6 +699,7 @@ public class PlayerMovement : NetworkBehaviour
     void RequestJumpServerRpc()
     {
         jumpRequested = true;
+        jumpBufferTimer = jumpBufferTime;
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -828,6 +890,14 @@ public class PlayerMovement : NetworkBehaviour
         timerActive = false;
     }
 
+    void ResetJumpState()
+    {
+        jumpRequested = false;
+        jumpBufferTimer = 0f;
+        coyoteTimer = 0f;
+        jumpCooldownTimer = 0f;
+    }
+
     IEnumerator FailSequenceWithDelay()
     {
         yield return new WaitForSeconds(vfxDelayBeforeFail);
@@ -847,7 +917,7 @@ public class PlayerMovement : NetworkBehaviour
         ResetDistanceTimer();
         SetDistanceWarning(false);
 
-        StopDistanceAudioClientRpc(); 
+        StopDistanceAudioClientRpc();
 
         if (IsServer)
         {
@@ -893,6 +963,7 @@ public class PlayerMovement : NetworkBehaviour
         jumpRequested = false;
         reviveTarget = null;
         reviveHoldTimer = 0f;
+        ResetJumpState();
 
         ApplyLifeState(LifeStateFailed);
     }
@@ -977,7 +1048,10 @@ public class PlayerMovement : NetworkBehaviour
         }
 
         if (IsServer && state != LifeStateAlive)
+        {
             isJumpingNet.Value = false;
+            ResetJumpState();
+        }
     }
 
     public void SelectCharacter(int index)
@@ -1009,6 +1083,7 @@ public class PlayerMovement : NetworkBehaviour
 
         lastInput = Vector3.zero;
         jumpRequested = false;
+        ResetJumpState();
 
         if (rb != null)
         {
@@ -1073,6 +1148,7 @@ public class PlayerMovement : NetworkBehaviour
             return;
 
         lifeStateNet.Value = LifeStateBusted;
+        ResetJumpState();
         ApplyLifeState(LifeStateBusted);
         Debug.Log("Player busted!");
     }
@@ -1109,6 +1185,7 @@ public class PlayerMovement : NetworkBehaviour
         isTouchingGroundTag = false;
         reviveTarget = null;
         reviveHoldTimer = 0f;
+        ResetJumpState();
 
         if (rb != null)
         {
