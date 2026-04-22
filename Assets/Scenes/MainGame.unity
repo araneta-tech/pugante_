@@ -2686,10 +2686,6 @@ MonoBehaviour:
   ipInputField: {fileID: 877828374}
   confirmIPButton: {fileID: 275187652}
   connectionStatusText: {fileID: 207147542}
-  inGameUIPanel: {fileID: 1778808655}
-  inGameUIAnimator: {fileID: 0}
-  hideUIAfterAnimationDelay: 0.2
-  isShowingBoolName: isShowing
 --- !u!4 &140324055
 Transform:
   m_ObjectHideFlags: 0
@@ -10985,7 +10981,7 @@ MonoBehaviour:
   rotateDuration: 3
   easeType: 2
   objectsToRotate:
-  - {fileID: 284393688}
+  - {fileID: 97273283}
   openAngles:
   - 90
   floatingUIText: {fileID: 999262065}
@@ -18259,16 +18255,6 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: Box (2)
-      objectReference: {fileID: 0}
-    - target: {fileID: 3086541152915651893, guid: fb617ac5a26747b47b7d2cd2c342d6dc,
-        type: 3}
-      propertyPath: m_LocalScale.y
-      value: 1.5136219
-      objectReference: {fileID: 0}
-    - target: {fileID: 3086541152915651893, guid: fb617ac5a26747b47b7d2cd2c342d6dc,
-        type: 3}
-      propertyPath: m_LocalScale.z
-      value: 1.5136217
       objectReference: {fileID: 0}
     - target: {fileID: 3086541152915651893, guid: fb617ac5a26747b47b7d2cd2c342d6dc,
         type: 3}
@@ -34897,7 +34883,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1778808656
 RectTransform:
   m_ObjectHideFlags: 0

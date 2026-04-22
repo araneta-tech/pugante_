@@ -29,12 +29,6 @@ public class NetworkUI : MonoBehaviour
     [SerializeField] private Button confirmIPButton;
     [SerializeField] private Text connectionStatusText;
 
-    [Header("In-Game UI")]
-    [SerializeField] private GameObject inGameUIPanel;
-    [SerializeField] private Animator inGameUIAnimator;
-    [SerializeField] private float hideUIAfterAnimationDelay = 0.2f;
-    [SerializeField] private string isShowingBoolName = "isShowing";
-
     private enum NetworkMode
     {
         None,
@@ -45,13 +39,9 @@ public class NetworkUI : MonoBehaviour
     private NetworkMode pendingMode = NetworkMode.None;
     private bool hasSelectedCharacter = false;
     private bool isPlaying = false;
-    private bool isInGameUIOpen = false;
     private string confirmedIP = "";
 
-    private Coroutine hideUIRoutine;
-
     public bool IsPlaying => isPlaying;
-    public bool IsInGameUIOpen => isInGameUIOpen;
 
     private void Awake()
     {
@@ -94,7 +84,6 @@ public class NetworkUI : MonoBehaviour
             clientButton.gameObject.SetActive(true);
 
         HideIPInputPanel();
-        HideInGameUIImmediate();
 
         if (NetworkManager.Singleton != null)
         {
@@ -116,100 +105,11 @@ public class NetworkUI : MonoBehaviour
         if (clientButton != null)
             clientButton.interactable = !hasSelectedCharacter;
 
-        HandleGameplayUIToggleInput();
         HandleCursorInput();
-    }
-
-    private void HandleGameplayUIToggleInput()
-    {
-        if (!isPlaying)
-            return;
-
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            ToggleInGameUI();
-        }
-    }
-
-    private void ToggleInGameUI()
-    {
-        if (isInGameUIOpen)
-            HideInGameUI();
-        else
-            ShowInGameUI();
-    }
-
-    private void ShowInGameUI()
-    {
-        isInGameUIOpen = true;
-
-        if (hideUIRoutine != null)
-        {
-            StopCoroutine(hideUIRoutine);
-            hideUIRoutine = null;
-        }
-
-        if (inGameUIPanel != null)
-            inGameUIPanel.SetActive(true);
-
-        if (inGameUIAnimator != null)
-            inGameUIAnimator.SetBool(isShowingBoolName, true);
-
-        UpdateCursorState();
-    }
-
-    private void HideInGameUI()
-    {
-        isInGameUIOpen = false;
-
-        if (inGameUIAnimator != null)
-            inGameUIAnimator.SetBool(isShowingBoolName, false);
-
-        if (hideUIRoutine != null)
-            StopCoroutine(hideUIRoutine);
-
-        if (inGameUIPanel != null)
-            hideUIRoutine = StartCoroutine(HideInGameUIDelayed());
-
-        UpdateCursorState();
-    }
-
-    private IEnumerator HideInGameUIDelayed()
-    {
-        yield return new WaitForSeconds(hideUIAfterAnimationDelay);
-
-        if (inGameUIPanel != null)
-            inGameUIPanel.SetActive(false);
-
-        hideUIRoutine = null;
-    }
-
-    private void HideInGameUIImmediate()
-    {
-        isInGameUIOpen = false;
-
-        if (hideUIRoutine != null)
-        {
-            StopCoroutine(hideUIRoutine);
-            hideUIRoutine = null;
-        }
-
-        if (inGameUIAnimator != null)
-            inGameUIAnimator.SetBool(isShowingBoolName, false);
-
-        if (inGameUIPanel != null)
-            inGameUIPanel.SetActive(false);
     }
 
     private void HandleCursorInput()
     {
-        if (isPlaying && isInGameUIOpen)
-        {
-            Cursor.visible = true;
-            Cursor.lockState = CursorLockMode.None;
-            return;
-        }
-
         bool isAltHeld = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
 
         if (isAltHeld)
@@ -224,7 +124,7 @@ public class NetworkUI : MonoBehaviour
 
     private void UpdateCursorState()
     {
-        if (isPlaying && !isInGameUIOpen)
+        if (isPlaying)
         {
             Cursor.visible = false;
             Cursor.lockState = CursorLockMode.Locked;
@@ -358,7 +258,6 @@ public class NetworkUI : MonoBehaviour
 
         hasSelectedCharacter = false;
         isPlaying = false;
-        HideInGameUIImmediate();
 
         UpdateCursorState();
     }
@@ -383,7 +282,6 @@ public class NetworkUI : MonoBehaviour
         StartCoroutine(SetCharacterIndexWhenReady(characterIndex));
 
         isPlaying = true;
-        HideInGameUIImmediate();
         UpdateCursorState();
     }
 
@@ -401,8 +299,10 @@ public class NetworkUI : MonoBehaviour
         if (transport == null)
         {
             Debug.LogError("[NetworkUI] UnityTransport component not found.");
+
             if (connectionStatusText != null)
                 connectionStatusText.text = "Transport is missing.";
+
             yield break;
         }
 
@@ -410,6 +310,7 @@ public class NetworkUI : MonoBehaviour
         {
             if (connectionStatusText != null)
                 connectionStatusText.text = "Invalid IP address. Input canceled.";
+
             CancelIPInput();
             yield break;
         }
@@ -429,6 +330,7 @@ public class NetworkUI : MonoBehaviour
             NetworkManager.Singleton.StartClient();
 
             float attemptStart = Time.time;
+
             while (Time.time - attemptStart < 5f)
             {
                 if (NetworkManager.Singleton.IsConnectedClient)
@@ -490,7 +392,8 @@ public class NetworkUI : MonoBehaviour
             yield return null;
         }
 
-        PlayerMovement playerMovement = NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<PlayerMovement>();
+        PlayerMovement playerMovement =
+            NetworkManager.Singleton.LocalClient.PlayerObject.GetComponent<PlayerMovement>();
 
         if (playerMovement != null)
         {
@@ -512,7 +415,8 @@ public class NetworkUI : MonoBehaviour
 
     private void OnClientDisconnected(ulong clientId)
     {
-        if (NetworkManager.Singleton != null && clientId == NetworkManager.Singleton.LocalClientId)
+        if (NetworkManager.Singleton != null &&
+            clientId == NetworkManager.Singleton.LocalClientId)
         {
             ReturnToTitleMenu();
         }
@@ -535,8 +439,6 @@ public class NetworkUI : MonoBehaviour
     private void ReturnToTitleMenu()
     {
         isPlaying = false;
-        hasSelectedCharacter = false;
-        HideInGameUIImmediate();
 
         HideIPInputPanel();
         ShowHostClientPanel();
