@@ -583,12 +583,12 @@ MonoBehaviour:
   explosionPrefab: {fileID: 4797666811915969247, guid: dcba39a6e3f07914bbda020ffb696f72,
     type: 3}
   boneName: collar.001
-  localOffset: {x: 0, y: 1.6, z: 0}
+  localOffset: {x: 0, y: 1.5, z: 0}
   explosionSound: {fileID: 8300000, guid: 736cbfba56d98f043b450b2530634e72, type: 3}
-  volume: 1
+  volume: 2
   shakeAmplitude: 2
   shakeFrequency: 2
-  shakeDuration: 0.5
+  shakeDuration: 2
 --- !u!136 &88952966652195418
 CapsuleCollider:
   m_ObjectHideFlags: 0
