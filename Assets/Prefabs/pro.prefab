@@ -440,6 +440,10 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
         type: 3}
       insertIndex: -1
+      addedObject: {fileID: 562229883009485666}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
+        type: 3}
+      insertIndex: -1
       addedObject: {fileID: 88952966652195418}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: d022fb7024c63bd4eb96b879d57f1d1e,
         type: 3}
@@ -557,12 +561,6 @@ MonoBehaviour:
   mouseSensitivity: 1
   cameraDistance: 2
   cameraHeight: 2
-  footstepClipsIndex0:
-  - {fileID: 8300000, guid: 039e73af825e8d041b60b354d76beb1e, type: 3}
-  footstepClipsIndex1:
-  - {fileID: 8300000, guid: 28fe47be573d9824ba5d134cc9b43e59, type: 3}
-  footstepInterval: 0.5
-  footstepVolume: 0.5
   distanceLoopClip: {fileID: 8300000, guid: 4bdb3c780e4a4b74fada8ba753c479a3, type: 3}
   minVolume: 0.05
   maxVolume: 1
@@ -589,6 +587,34 @@ MonoBehaviour:
   shakeAmplitude: 2
   shakeFrequency: 2
   shakeDuration: 2
+--- !u!114 &562229883009485666
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8880608386803156541}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0875dad0a533cfd4b8f52d89a5abf29b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  footstepClipsIndex0:
+  - {fileID: 8300000, guid: 039e73af825e8d041b60b354d76beb1e, type: 3}
+  footstepClipsIndex1:
+  - {fileID: 8300000, guid: 28fe47be573d9824ba5d134cc9b43e59, type: 3}
+  index0:
+    stepInterval: 0.33
+    moveThreshold: 0.5
+    volume: 0.3
+    minPitch: 0.6
+    maxPitch: 0.8
+  index1:
+    stepInterval: 0.5
+    moveThreshold: 0.5
+    volume: 0.8
+    minPitch: 0.7
+    maxPitch: 1
 --- !u!136 &88952966652195418
 CapsuleCollider:
   m_ObjectHideFlags: 0

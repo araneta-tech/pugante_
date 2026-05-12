@@ -63,13 +63,6 @@ public class PlayerMovement : NetworkBehaviour
     public float cameraDistance = 4f;
     public float cameraHeight = 2f;
 
-    [Header("Footstep Audio")]
-    public AudioClip[] footstepClipsIndex0;
-    public AudioClip[] footstepClipsIndex1;
-
-    public float footstepInterval = 0.5f;
-    public float footstepVolume = 1f;
-
     [Header("Distance Warning Audio")]
     public AudioClip distanceLoopClip;
 
@@ -102,8 +95,6 @@ public class PlayerMovement : NetworkBehaviour
     private bool isGrounded;
     private bool isTouchingGroundTag;
     private Vector3 lastInput;
-    private AudioSource footstepSource;
-    private float footstepTimer = 0f;
 
     private bool jumpRequested = false;
     private float jumpBufferTimer = 0f;
@@ -167,6 +158,7 @@ public class PlayerMovement : NetworkBehaviour
     public bool IsDead => lifeStateNet.Value != LifeStateAlive;
     public bool IsDistanceWarning => distanceWarningNet.Value;
     public float DistanceNormalized => distanceNormalizedNet.Value;
+    public bool IsGrounded => isGrounded || isTouchingGroundTag;
 
     public static event System.Action<PlayerMovement> OnPlayerDespawned;
 
@@ -240,15 +232,6 @@ public class PlayerMovement : NetworkBehaviour
             }
 
             SetSpawnPositionClientRpc(spawnPos);
-        }
-
-        if (footstepSource == null)
-        {
-            footstepSource = gameObject.AddComponent<AudioSource>();
-            footstepSource.playOnAwake = false;
-            footstepSource.loop = false;
-            footstepSource.spatialBlend = 1f;
-            footstepSource.volume = footstepVolume;
         }
 
         if (distanceLoopClip != null)
@@ -400,57 +383,6 @@ public class PlayerMovement : NetworkBehaviour
             DebugKillServerRpc();
 
         HandleReviveInput();
-    }
-
-    void HandleFootstepsServer()
-    {
-        if (!IsServer) return;
-
-        bool isMoving = lastInput.magnitude > 0.1f;
-        bool grounded = isGrounded || isTouchingGroundTag;
-
-        if (!isMoving || !grounded || IsBusted || IsFailed)
-        {
-            footstepTimer = 0f;
-            return;
-        }
-
-        footstepTimer += Time.fixedDeltaTime;
-
-        if (footstepTimer >= footstepInterval)
-        {
-            footstepTimer = 0f;
-            PlayFootstepClientRpc(transform.position, selectedCharacterIndex.Value);
-        }
-    }
-
-    [ClientRpc]
-    void PlayFootstepClientRpc(Vector3 position, int characterIndex)
-    {
-        if (footstepSource == null)
-            return;
-
-        AudioClip clipToPlay = GetFootstepClip(characterIndex);
-        if (clipToPlay == null)
-            return;
-
-        footstepSource.transform.position = position;
-        footstepSource.PlayOneShot(clipToPlay, footstepVolume);
-    }
-
-    AudioClip GetFootstepClip(int index)
-    {
-        AudioClip[] clips = null;
-
-        if (index == 0)
-            clips = footstepClipsIndex0;
-        else if (index == 1)
-            clips = footstepClipsIndex1;
-
-        if (clips == null || clips.Length == 0)
-            return null;
-
-        return clips[Random.Range(0, clips.Length)];
     }
 
     void HandleDistanceAudio()
@@ -768,8 +700,6 @@ public class PlayerMovement : NetworkBehaviour
         bool walking = lastInput.magnitude > 0.01f;
         if (isWalkingNet.Value != walking)
             isWalkingNet.Value = walking;
-
-        HandleFootstepsServer();
 
         CheckPlayersDistance();
     }
