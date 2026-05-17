@@ -4,10 +4,10 @@ using UnityEngine.SceneManagement;
 public class RestartToFirstSceneOnEscape : MonoBehaviour
 {
     [Header("Allowed Scene")]
-    [SerializeField] private string targetSceneName; // Set this in Inspector
+    [SerializeField] private string targetSceneName; 
 
     private float timer = 0f;
-    private const float autoLoadTime = 66f; // 1 minute 25 seconds
+    private const float autoLoadTime = 66f; 
 
     private void Update()
     {

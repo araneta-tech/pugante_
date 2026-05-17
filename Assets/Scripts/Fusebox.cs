@@ -10,8 +10,8 @@ public class Fusebox : NetworkBehaviour
     public enum EaseType
     {
         Linear,
-        EaseOut,     // fast → slow (snappy switch)
-        EaseInOut    // smooth both ends (heavy door)
+        EaseOut, 
+        EaseInOut    
     }
 
     public EaseType easeType = EaseType.EaseInOut;
@@ -165,13 +165,13 @@ public class Fusebox : NetworkBehaviour
         switch (easeType)
         {
             case EaseType.EaseOut:
-                return 1f - Mathf.Pow(1f - t, 3f); // fast → slow
+                return 1f - Mathf.Pow(1f - t, 3f); 
 
             case EaseType.EaseInOut:
-                return t * t * (3f - 2f * t); // smooth both ends
+                return t * t * (3f - 2f * t); 
 
             default:
-                return t; // linear
+                return t; 
         }
     }
 

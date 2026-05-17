@@ -4,10 +4,10 @@ using UnityEngine.SceneManagement;
 public class NextSceneOnEscape : MonoBehaviour
 {
     [Header("Allowed Scene")]
-    [SerializeField] private string targetSceneName; // set this in Inspector
+    [SerializeField] private string targetSceneName; 
 
     private float timer = 0f;
-    private const float autoLoadTime = 85f; // 1 minute 3 seconds
+    private const float autoLoadTime = 85f;
 
     private void Update()
     {
