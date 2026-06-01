@@ -7,7 +7,7 @@ public class RestartToFirstSceneOnEscape : MonoBehaviour
     [SerializeField] private string targetSceneName; 
 
     private float timer = 0f;
-    private const float autoLoadTime = 66f; 
+    private const float autoLoadTime = 40f; 
 
     private void Update()
     {

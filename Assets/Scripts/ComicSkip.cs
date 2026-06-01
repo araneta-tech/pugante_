@@ -7,7 +7,7 @@ public class NextSceneOnEscape : MonoBehaviour
     [SerializeField] private string targetSceneName; 
 
     private float timer = 0f;
-    private const float autoLoadTime = 85f;
+    private const float autoLoadTime = 65f;
 
     private void Update()
     {

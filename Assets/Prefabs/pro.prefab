@@ -540,7 +540,7 @@ MonoBehaviour:
   defaultCharacterIndex: 0
   warningDistance: 15
   limitDistance: 20
-  outOfRangeDuration: 2
+  outOfRangeDuration: 5
   failUiHoldSeconds: 5
   menuSceneName: HostClientMenu
   vfxExplosionPrefab: {fileID: 4797666811915969247, guid: dcba39a6e3f07914bbda020ffb696f72,

@@ -24010,7 +24010,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -37.08336, y: 22.500021}
+  m_AnchoredPosition: {x: -2.2, y: -22.4}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1007816946
@@ -24033,7 +24033,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Texture: {fileID: 2800000, guid: 5e2ed5fc87e5d5147a863503e44cdbf8, type: 3}
+  m_Texture: {fileID: 2800000, guid: 86a90ff8135485c409d5a24eff725aee, type: 3}
   m_UVRect:
     serializedVersion: 2
     x: 0
@@ -34463,8 +34463,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.09, y: 0.28984597, z: 0.51797736}
-  m_Center: {x: 0.015, y: 0.015055278, z: -0.093458466}
+  m_Size: {x: 0.11411956, y: 0.28984597, z: 0.51797736}
+  m_Center: {x: 0.02705974, y: 0.015055279, z: -0.09345846}
 --- !u!1 &1565284502
 GameObject:
   m_ObjectHideFlags: 0
@@ -41395,8 +41395,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.09, y: 0.28984597, z: 0.51797736}
-  m_Center: {x: 0.115, y: 0.015055278, z: -0.093458466}
+  m_Size: {x: 0.10883114, y: 0.28984597, z: 0.51797736}
+  m_Center: {x: 0.10558455, y: 0.015055282, z: -0.093458444}
 --- !u!4 &1854959531 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 854f759367a5f3e4d93599a100a2470a,
