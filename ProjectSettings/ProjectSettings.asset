@@ -42,8 +42,8 @@ PlayerSettings:
   m_SplashScreenLogos: []
   m_VirtualRealitySplashScreen: {fileID: 0}
   m_HolographicTrackingLossScreen: {fileID: 0}
-  defaultScreenWidth: 1024
-  defaultScreenHeight: 768
+  defaultScreenWidth: 1280
+  defaultScreenHeight: 720
   defaultScreenWidthWeb: 960
   defaultScreenHeightWeb: 600
   m_StereoRenderingPath: 0
@@ -79,7 +79,7 @@ PlayerSettings:
   androidAutoRotationBehavior: 1
   defaultIsNativeResolution: 1
   macRetinaSupport: 1
-  runInBackground: 0
+  runInBackground: 1
   captureSingleScreen: 0
   muteOtherAudioSources: 0
   Prepare IOS For Recording: 0
@@ -919,10 +919,10 @@ PlayerSettings:
   apiCompatibilityLevel: 6
   activeInputHandler: 0
   windowsGamepadBackendHint: 0
-  cloudProjectId: 630c394b-40c1-4c75-b271-903e6b16d36b
+  cloudProjectId: 9c03616a-18ba-44f5-ab82-d0feb20a88d3
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: PUGANTE
+  projectName: PUGANTE (3)
   organizationId: lowelljaymalinao20
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
